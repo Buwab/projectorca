@@ -3,7 +3,7 @@ import json
 from dotenv import load_dotenv
 from supabase import create_client
 
-# ⬇️ Laad env-variabelens
+# ⬇️ Laad env-variabelen
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -62,6 +62,8 @@ def import_structured_orders():
         except Exception as e:
             print(f"❌ Fout bij importeren van order '{order['subject']}': {e}")
 
-if __name__ == "__main__":
+def run():
     import_structured_orders()
 
+if __name__ == "__main__":
+    run()

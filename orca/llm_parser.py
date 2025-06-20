@@ -5,7 +5,7 @@ from supabase import create_client
 from openai import OpenAI
 from datetime import datetime
 
-# 🔧 Load .env settingss
+# 🔧 Load .env settings
 load_dotenv()
 
 # 📦 Supabase setup
@@ -19,7 +19,6 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # 📅 Huidige datum (voor relatieve datums zoals 'dinsdag')
 today = datetime.today().strftime("%Y-%m-%d")
 
-# 🧠 Genereer prompt en parse output
 def extract_order_from_email(email_body):
     prompt = f"""
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
@@ -63,7 +62,6 @@ Antwoord in exact dit JSON-format:
 
     return response.choices[0].message.content
 
-# 🧰 Strip Markdown-codeblok uit LLM-output
 def clean_json_output(raw_text):
     if raw_text.startswith("```"):
         raw_text = raw_text.strip().strip("`")
@@ -75,7 +73,6 @@ def clean_json_output(raw_text):
         return "\n".join(lines)
     return raw_text
 
-# 🧪 LLM-verwerking van nog niet geparste e-mails
 def process_raw_emails():
     response = supabase.table("orders").select("*").eq("llm_processed", False).execute()
     emails = response.data
@@ -106,6 +103,8 @@ def process_raw_emails():
         except Exception as e:
             print(f"❌ Fout bij verwerken van mail '{mail.get('subject', '')}': {e}")
 
-# ▶️ Start
-if __name__ == "__main__":
+def run():
     process_raw_emails()
+
+if __name__ == "__main__":
+    run()

@@ -4,7 +4,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
 from supabase_client import store_email
-# 🔧 Load .env settingss
+
+# 🔧 Load .env settings
 load_dotenv()
 
 HOST = os.getenv("IMAP_SERVER")
@@ -25,22 +26,29 @@ def extract_body(msg):
     else:
         return msg.get_payload(decode=True).decode()
 
-with IMAPClient(HOST, ssl=True) as server:
-    server.login(USER, PASSWORD)
-    server.select_folder("INBOX")
+def process_emails():
+    with IMAPClient(HOST, ssl=True) as server:
+        server.login(USER, PASSWORD)
+        server.select_folder("INBOX")
 
-    messages = server.search(["UNSEEN"])
-    print(f"Gevonden ongelezen mails: {len(messages)}")
+        messages = server.search(["UNSEEN"])
+        print(f"📬 Gevonden ongelezen mails: {len(messages)}")
 
-    for uid, msg_data in server.fetch(messages, ["RFC822"]).items():
-        raw_email = msg_data[b"RFC822"]
-        msg = email.message_from_bytes(raw_email)
+        for uid, msg_data in server.fetch(messages, ["RFC822"]).items():
+            raw_email = msg_data[b"RFC822"]
+            msg = email.message_from_bytes(raw_email)
 
-        subject = msg["subject"]
-        sender = msg["from"]
-        body = extract_body(msg)
+            subject = msg["subject"]
+            sender = msg["from"]
+            body = extract_body(msg)
 
-        print(f"Verwerk e-mail: {subject} van {sender}")
-        store_email(subject, sender, body)
+            print(f"✉️ Verwerk e-mail: {subject} van {sender}")
+            store_email(subject, sender, body)
 
-        server.add_flags(uid, [b"\\Seen"])
+            server.add_flags(uid, [b"\\Seen"])
+
+def run():
+    process_emails()
+
+if __name__ == "__main__":
+    run()
