@@ -83,7 +83,7 @@ export default function OrdersOverview({ orders }: { orders: Order[] }) {
           <CardContent>
             <Tabs defaultValue="raw" className="w-full">
               <TabsList>
-                <TabsTrigger value="raw">Raw body</TabsTrigger>
+                <TabsTrigger value="raw">Rauw body</TabsTrigger>
                 <TabsTrigger value="parsed">Parsed JSON</TabsTrigger>
                 <TabsTrigger value="lines">Orderregels</TabsTrigger>
                 <TabsTrigger value="feedback">Feedback</TabsTrigger>
