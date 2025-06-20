@@ -55,8 +55,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       });
       alert("Feedback opgeslagen ✔");
       setFeedbackText("");
-    } catch (err) {
-      console.error("Fout bij opslaan feedback:", err);
+    } catch {
       alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
     } finally {
       setSubmitting(false);
@@ -77,7 +76,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         );
         await fetchOrders();
       }
-    } catch (err) {
+    } catch {
       setProcessResult("❌ Fout bij verbinden met backend");
     } finally {
       setProcessing(false);
