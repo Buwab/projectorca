@@ -93,7 +93,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         <h1 className="text-lg font-semibold">Orders</h1>
         <div className="flex flex-col items-end">
           <Button onClick={handleProcessAll} disabled={processing}>
-            {processing ? "Bezig..." : "Nieuwe e-mails ophalen"}
+            {processing ? "Bezig..." : "Nieuwe e-mails brengen"}
           </Button>
           {processResult && <span className="text-xs mt-1 text-muted-foreground">{processResult}</span>}
         </div>
