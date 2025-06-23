@@ -87,25 +87,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
-  const handleCreateTrelloCard = async () => {
-    if (!selectedOrder) return;
-    try {
-      const res = await fetch("https://projectorca.onrender.com/create-trello-card", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: selectedOrder.id }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        alert("📋 Trello-kaartje aangemaakt!");
-      } else {
-        alert("❌ Maken Trello-kaartje mislukt.");
-      }
-    } catch (error) {
-      alert("❌ Fout bij verbinden met Trello-service");
-    }
-  };
-
+ 
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
     products.forEach((p) => {
@@ -224,9 +206,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                       <div className="flex gap-2">
                         <Button type="submit" disabled={submitting}>
                           {submitting ? "Versturen..." : "Verbeter model"}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={handleCreateTrelloCard}>
-                          📋 Trello kaartje
                         </Button>
                       </div>
                     </form>
