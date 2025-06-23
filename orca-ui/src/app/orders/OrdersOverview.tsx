@@ -39,9 +39,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const ordersPerPage = 50;
 
   const fetchOrders = async () => {
-    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
     if (data) setOrders(data as Order[]);
-    if (error) console.error("Fout bij ophalen orders:", error);
   };
 
   useEffect(() => {
@@ -63,7 +62,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       alert("Feedback opgeslagen ✔");
       setFeedbackText("");
     } catch {
-      alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
+      alert("❌ Feedback opslaan mislukt. Is je JSON wel geldig?");
     } finally {
       setSubmitting(false);
     }
@@ -78,9 +77,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       if (json.status === "error") {
         setProcessResult(`❌ Fout: ${json.message}`);
       } else {
-        setProcessResult(
-          `📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`
-        );
+        setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
         await fetchOrders();
       }
     } catch {
@@ -90,25 +87,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
-  const handleCreateTrelloCard = async () => {
-    if (!selectedOrder) return;
-    try {
-      const res = await fetch("https://projectorca.onrender.com/create-trello-card", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: selectedOrder.id }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        alert("📋 Trello-kaartje aangemaakt!");
-      } else {
-        alert("❌ Maken Trello-kaartje mislukt.");
-      }
-    } catch (error) {
-      alert("❌ Fout bij verbinden met Trello-service");
-    }
-  };
-
+ 
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
     products.forEach((p) => {
@@ -121,10 +100,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
 
   const totalPages = Math.ceil(orders.length / ordersPerPage);
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const paginatedOrders = sortedOrders.slice(
-    (currentPage - 1) * ordersPerPage,
-    currentPage * ordersPerPage
-  );
+  const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
   return (
     <div className="p-4">
@@ -139,7 +115,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Linker kolom: lijst van e-mails */}
         <div className="space-y-2 max-h-[80vh] overflow-auto">
           {paginatedOrders.map((order) => (
             <Card key={order.id} onClick={() => setSelectedOrder(order)} className="cursor-pointer">
@@ -162,7 +137,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
           </div>
         </div>
 
-        {/* Middenkolom: raw body */}
         {selectedOrder && (
           <div className="col-span-1">
             <Card>
@@ -176,7 +150,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
           </div>
         )}
 
-        {/* Rechter kolom: JSON, producten, feedback */}
         {selectedOrder && (
           <div className="col-span-1">
             <Card>
@@ -233,9 +206,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                       <div className="flex gap-2">
                         <Button type="submit" disabled={submitting}>
                           {submitting ? "Versturen..." : "Verbeter model"}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={handleCreateTrelloCard}>
-                          📋 Trello kaartje
                         </Button>
                       </div>
                     </form>
