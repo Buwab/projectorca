@@ -62,7 +62,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       alert("Feedback opgeslagen ✔");
       setFeedbackText("");
     } catch {
-      alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
+      alert("❌ Feedback opslaan mislukt. Is je JSON wel geldig?");
     } finally {
       setSubmitting(false);
     }
