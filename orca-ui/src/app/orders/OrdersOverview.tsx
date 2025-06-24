@@ -7,13 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 
-interface Product {
-  product_name: string;
-  quantity: number;
-  unit: string;
-  delivery_date?: string;
-}
-
 interface OrderLine {
   order_id: string;
   product_name: string;
@@ -28,7 +21,7 @@ interface Order {
   subject: string;
   sender: string;
   email_body: string;
-  parsed_data: any;
+  parsed_data: Record<string, unknown>;
 }
 
 export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {

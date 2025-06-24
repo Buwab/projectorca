@@ -12,7 +12,7 @@ interface Order {
     subject: string;
     sender: string;
     email_body: string;
-    parsed_data: any;
+    parsed_data: Record<string, unknown>;
   }
   
 
