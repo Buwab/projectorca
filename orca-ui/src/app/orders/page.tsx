@@ -12,14 +12,7 @@ interface Order {
     subject: string;
     sender: string;
     email_body: string;
-    parsed_data: {
-      products?: {
-        name: string;
-        quantity: number;
-        unit: string;
-      }[];
-      [key: string]: unknown;
-    };
+    parsed_data: any;
   }
   
 

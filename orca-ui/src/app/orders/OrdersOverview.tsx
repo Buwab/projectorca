@@ -8,15 +8,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 
 interface Product {
-  name: string;
+  product_name: string;
   quantity: number;
   unit: string;
   delivery_date?: string;
 }
 
-interface ParsedData {
-  products?: Product[];
-  [key: string]: unknown;
+interface OrderLine {
+  order_id: string;
+  product_name: string;
+  quantity: number;
+  unit: string;
+  delivery_date?: string;
 }
 
 interface Order {
@@ -25,12 +28,13 @@ interface Order {
   subject: string;
   sender: string;
   email_body: string;
-  parsed_data: ParsedData;
+  parsed_data: any;
 }
 
 export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [feedbackText, setFeedbackText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -46,6 +50,26 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  const fetchOrderLines = async (emailId: string) => {
+    const { data: structured } = await supabase
+      .from("orders_structured")
+      .select("id")
+      .eq("email_id", emailId)
+      .maybeSingle();
+
+    if (!structured) {
+      setOrderLines([]);
+      return;
+    }
+
+    const { data: lines } = await supabase
+      .from("order_lines")
+      .select("*")
+      .eq("order_id", structured.id);
+
+    if (lines) setOrderLines(lines as OrderLine[]);
+  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,13 +111,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
- 
-  const groupedProductsByDate = (products: Product[]) => {
-    const grouped: Record<string, Product[]> = {};
-    products.forEach((p) => {
-      const date = p.delivery_date || "Onbekende datum";
+  const groupedProductsByDate = (lines: OrderLine[]) => {
+    const grouped: Record<string, OrderLine[]> = {};
+    lines.forEach((line) => {
+      const date = line.delivery_date || "Onbekende datum";
       if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(p);
+      grouped[date].push(line);
     });
     return grouped;
   };
@@ -117,7 +140,14 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
           {paginatedOrders.map((order) => (
-            <Card key={order.id} onClick={() => setSelectedOrder(order)} className="cursor-pointer">
+            <Card
+              key={order.id}
+              onClick={() => {
+                setSelectedOrder(order);
+                fetchOrderLines(order.id);
+              }}
+              className="cursor-pointer"
+            >
               <CardHeader>
                 <CardTitle className="text-sm">{order.subject}</CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -166,22 +196,20 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                   </TabsList>
 
                   <TabsContent value="lines">
-                    {selectedOrder.parsed_data?.products ? (
-                      Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
-                        ([date, products]) => (
-                          <div key={date} className="mb-3">
-                            <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
-                            {products.map((p, i) => (
-                              <div key={i} className="flex justify-between text-sm border-b py-1">
-                                <span>{p.name}</span>
-                                <span>
-                                  {p.quantity} {p.unit}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      )
+                    {orderLines.length > 0 ? (
+                      Object.entries(groupedProductsByDate(orderLines)).map(([date, products]) => (
+                        <div key={date} className="mb-3">
+                          <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
+                          {products.map((p, i) => (
+                            <div key={i} className="flex justify-between text-sm border-b py-1">
+                              <span>{p.product_name}</span>
+                              <span>
+                                {p.quantity} {p.unit}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ))
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
