@@ -52,7 +52,8 @@ def import_structured_orders():
                     "order_id": structured_id,
                     "product_name": product.get("name"),
                     "quantity": product.get("quantity"),
-                    "unit": product.get("unit")
+                    "unit": product.get("unit"),
+                    "delivery_date": product.get("delivery_date") or parsed.get("delivery_date")
                 }
                 supabase.table("order_lines").insert(line_data).execute()
 
