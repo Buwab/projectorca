@@ -6,12 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
+import React from "react";
+import { Loader2 } from "lucide-react";
+
+// Helper function to normalize product names for comparison
+function normalizeProductName(name: string): string {
+  return name.toLowerCase()
+    .replace(/zaden\s+/, '') // Remove 'zaden' prefix
+    .replace(/en\s+/, '')    // Remove 'en' joining word
+    .replace(/s$/, '')       // Remove trailing 's' for plurals
+    .trim();
+}
 
 interface Product {
   name: string;
   quantity: number;
   unit: string;
   delivery_date?: string;
+  is_exported?: boolean;
+  order_line_id?: string | null;
 }
 
 interface ParsedData {
@@ -37,15 +50,21 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 50;
+  const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
+
+  // Sync with parent component when initialOrders changes
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
 
   const fetchOrders = async () => {
+    setOrders([]); // Clear state first to avoid stale data
+    
     const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-    if (data) setOrders(data as Order[]);
+    if (data) {
+      setOrders(data as Order[]);
+    }
   };
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +97,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         setProcessResult(`❌ Fout: ${json.message}`);
       } else {
         setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
-        await fetchOrders();
+        // Trigger a page refresh to get updated data through the parent component
+        window.location.reload();
       }
     } catch {
       setProcessResult("❌ Fout bij verbinden met backend");
@@ -87,7 +107,142 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
- 
+  const handleSendOrder = async (product: Product, productIndex: number) => {
+    if (!product.delivery_date) return;
+    
+    // Create a unique key for this specific product using its properties
+    const productKey = `${selectedOrder?.id}-${product.name}-${product.quantity}-${product.unit}-${product.delivery_date}`;
+    setSendingOrders(prev => new Set(prev).add(productKey));
+    
+    try {
+      console.log('Attempting to send order:', {
+        order_id: selectedOrder?.id,
+        product,
+        product_index: productIndex
+      });
+
+      const response = await fetch("http://localhost:8005/send-to-trello", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder?.id,
+          product,
+          product_index: productIndex
+        }),
+      });
+
+      console.log('Response status:', response.status);
+      const result = await response.json();
+      console.log('Response data:', result);
+
+      if (!response.ok) {
+        throw new Error(`Failed to send order: ${response.statusText}. Details: ${JSON.stringify(result)}`);
+      }
+
+      if (result.status === "success") {
+        // First: Immediately update the UI for instant feedback using order_line_id
+        setOrders(prevOrders => {
+          return prevOrders.map(order => {
+            if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
+            
+            return {
+              ...order,
+              parsed_data: {
+                ...order.parsed_data,
+                products: order.parsed_data.products.map((p) => {
+                  // Update the specific product that was just sent using its order_line_id
+                  if (p.order_line_id && p.order_line_id === product.order_line_id) {
+                    return {
+                      ...p,
+                      is_exported: true
+                    };
+                  }
+                  return p;
+                })
+              }
+            };
+          });
+        });
+
+        // Second: Sync with database in the background for consistency
+        // Get all exported order lines
+        const { data: exportedLines } = await supabase
+          .from("order_lines")
+          .select("order_id, product_name, quantity, unit")
+          .eq("is_exported", true);
+
+        // Get the mapping of email_id to structured_order_id
+        const { data: structuredOrders } = await supabase
+          .from("orders_structured")
+          .select("id, email_id");
+
+        if (exportedLines && structuredOrders) {
+          // Create a map of structured_id to email_id for easier lookup
+          const structuredToEmailMap = new Map(
+            structuredOrders.map(so => [so.id, so.email_id])
+          );
+
+          // Create a map of email_ids to their exported products
+          const exportedProducts = new Map();
+          exportedLines.forEach(line => {
+            const emailId = structuredToEmailMap.get(line.order_id);
+            if (emailId) {
+              if (!exportedProducts.has(emailId)) {
+                exportedProducts.set(emailId, new Set());
+              }
+              // Create a more specific key: "product_name|quantity|unit"
+              const productKey = `${line.product_name}|${line.quantity}|${line.unit}`;
+              exportedProducts.get(emailId).add(productKey);
+            }
+          });
+
+          // Update orders state with database truth (this will override the immediate update if needed)
+          setOrders(prevOrders => {
+            return prevOrders.map(order => {
+              if (!order.parsed_data?.products) return order;
+
+              const exportedProductsForOrder = exportedProducts.get(order.id) || new Set();
+              
+              return {
+                ...order,
+                parsed_data: {
+                  ...order.parsed_data,
+                  products: order.parsed_data.products.map(p => {
+                    // Create the same specific key for matching
+                    const productKey = `${p.name}|${p.quantity}|${p.unit}`;
+                    const isExported = exportedProductsForOrder.has(productKey);
+                    return {
+                      ...p,
+                      is_exported: isExported
+                    };
+                  })
+                }
+              };
+            });
+          });
+        }
+      } else {
+        throw new Error(result.message || "Failed to send order to Trello");
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || "Unknown error occurred";
+      console.error("Error sending order:", {
+        error,
+        message: errorMessage,
+        stack: error.stack
+      });
+      alert("Failed to send order to Trello. Please try again. Error: " + errorMessage);
+    } finally {
+      setSendingOrders(prev => {
+        const next = new Set(prev);
+        next.delete(productKey);
+        return next;
+      });
+    }
+  };
+
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
     products.forEach((p) => {
@@ -171,14 +326,36 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                         ([date, products]) => (
                           <div key={date} className="mb-3">
                             <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
-                            {products.map((p, i) => (
-                              <div key={i} className="flex justify-between text-sm border-b py-1">
-                                <span>{p.name}</span>
-                                <span>
-                                  {p.quantity} {p.unit}
-                                </span>
-                              </div>
-                            ))}
+                            {products.map((p, i) => {
+                              // Create the same unique key for this specific product
+                              const productKey = `${selectedOrder?.id}-${p.name}-${p.quantity}-${p.unit}-${p.delivery_date}`;
+                              
+                              return (
+                                <div key={i} className="flex justify-between text-sm border-b py-1">
+                                  <span>{p.name}</span>
+                                  <span>
+                                    {p.quantity} {p.unit}
+                                    {p.delivery_date && (
+                                      <Button 
+                                        variant={p.is_exported ? "ghost" : "outline"} 
+                                        size="icon"
+                                        className="ml-2 h-6 w-6 hover:bg-slate-100"
+                                        onClick={() => handleSendOrder(p, i)}
+                                        disabled={p.is_exported || sendingOrders.has(productKey)}
+                                      >
+                                        {p.is_exported ? (
+                                          "✅"
+                                        ) : sendingOrders.has(productKey) ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          "📤"
+                                        )}
+                                      </Button>
+                                    )}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )
                       )

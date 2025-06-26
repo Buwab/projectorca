@@ -8,8 +8,8 @@ from supabase_client import store_email
 # 🔧 Load .env settings
 load_dotenv()
 
-HOST = os.getenv("IMAP_SERVER")
-PORT = int(os.getenv("IMAP_PORT"))
+HOST = os.getenv("IMAP_SERVER", "imap.gmail.com")
+PORT = int(os.getenv("IMAP_PORT", "993"))  # Default IMAP SSL port
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 

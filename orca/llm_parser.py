@@ -52,7 +52,7 @@ Antwoord in exact dit JSON-format:
 """
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "Je bent een behulpzame order-parser."},
             {"role": "user", "content": prompt}
