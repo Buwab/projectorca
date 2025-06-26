@@ -94,8 +94,38 @@ export default function Page() {
           });
         }
 
-        // Just pass through the orders data as-is since it already contains order_line_id
-        const updatedOrders = ordersData;
+        // Enrich the orders data with order_line_id from the order_lines table
+        const updatedOrders = ordersData.map(order => {
+          if (!order.parsed_data?.products) return order;
+          
+          const orderLinesForThisOrder = allOrderLinesMap.get(order.id) || [];
+          const exportedProductsForThisOrder = exportedProducts.get(order.id) || new Set();
+          
+          return {
+            ...order,
+            parsed_data: {
+              ...order.parsed_data,
+              products: order.parsed_data.products.map(product => {
+                // Try to find the matching order line for this product
+                const matchingOrderLine = orderLinesForThisOrder.find(line => 
+                  line.product_name === product.name &&
+                  line.quantity === product.quantity &&
+                  line.unit === product.unit
+                );
+                
+                // Check if this product is exported
+                const productKey = `${product.name}|${product.quantity}|${product.unit}`;
+                const isExported = exportedProductsForThisOrder.has(productKey);
+                
+                return {
+                  ...product,
+                  order_line_id: matchingOrderLine?.id || null,
+                  is_exported: isExported
+                };
+              })
+            }
+          };
+        });
 
         setOrders(updatedOrders);
       } catch (error) {
