@@ -118,7 +118,14 @@ export default function Page() {
                 const isExported = exportedProductsForOrder.has(productKey);
                 
                 // Find the corresponding order_line to get the ID
-                const matchingOrderLine = orderLinesForOrder.find(line => 
+                const matchingOrderLine = orderLinesForOrder.find((line: {
+                  id: string;
+                  order_id: string;
+                  product_name: string;
+                  quantity: number;
+                  unit: string;
+                  is_exported: boolean;
+                }) => 
                   line.product_name === product.name &&
                   line.quantity === product.quantity &&
                   line.unit === product.unit
