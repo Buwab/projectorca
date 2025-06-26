@@ -25,14 +25,7 @@ interface Order {
     };
   }
   
-// Helper function to normalize product names for comparison
-function normalizeProductName(name: string): string {
-  return name.toLowerCase()
-    .replace(/zaden\s+/, '') // Remove 'zaden' prefix
-    .replace(/en\s+/, '')    // Remove 'en' joining word
-    .replace(/s$/, '')       // Remove trailing 's' for plurals
-    .trim();
-}
+
 
 export default function Page() {
     const [orders, setOrders] = useState<Order[]>([])

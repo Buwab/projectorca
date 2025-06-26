@@ -9,14 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import React from "react";
 import { Loader2 } from "lucide-react";
 
-// Helper function to normalize product names for comparison
-function normalizeProductName(name: string): string {
-  return name.toLowerCase()
-    .replace(/zaden\s+/, '') // Remove 'zaden' prefix
-    .replace(/en\s+/, '')    // Remove 'en' joining word
-    .replace(/s$/, '')       // Remove trailing 's' for plurals
-    .trim();
-}
+
 
 interface Product {
   name: string;
@@ -57,14 +50,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setOrders(initialOrders);
   }, [initialOrders]);
 
-  const fetchOrders = async () => {
-    setOrders([]); // Clear state first to avoid stale data
-    
-    const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-    if (data) {
-      setOrders(data as Order[]);
-    }
-  };
+
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,12 +212,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       } else {
         throw new Error(result.message || "Failed to send order to Trello");
       }
-    } catch (error: any) {
-      const errorMessage = error.message || "Unknown error occurred";
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       console.error("Error sending order:", {
         error,
         message: errorMessage,
-        stack: error.stack
+        stack: error instanceof Error ? error.stack : undefined
       });
       alert("Failed to send order to Trello. Please try again. Error: " + errorMessage);
     } finally {
