@@ -94,52 +94,8 @@ export default function Page() {
           });
         }
 
-        // Update orders with correct export status AND enrich with order_lines.id
-        const updatedOrders = ordersData.map(order => {
-          if (!order.parsed_data?.products) return order;
-
-          const exportedProductsForOrder = exportedProducts.get(order.id) || new Set();
-          const orderLinesForOrder = allOrderLinesMap.get(order.id) || [];
-          
-          return {
-            ...order,
-            parsed_data: {
-              ...order.parsed_data,
-              products: order.parsed_data.products.map((product: {
-                name: string;
-                quantity: number;
-                unit: string;
-                delivery_date?: string;
-                is_exported?: boolean;
-                order_line_id?: string | null;
-              }) => {
-                // Create the same specific key for matching
-                const productKey = `${product.name}|${product.quantity}|${product.unit}`;
-                const isExported = exportedProductsForOrder.has(productKey);
-                
-                // Find the corresponding order_line to get the ID
-                const matchingOrderLine = orderLinesForOrder.find((line: {
-                  id: string;
-                  order_id: string;
-                  product_name: string;
-                  quantity: number;
-                  unit: string;
-                  is_exported: boolean;
-                }) => 
-                  line.product_name === product.name &&
-                  line.quantity === product.quantity &&
-                  line.unit === product.unit
-                );
-                
-                return {
-                  ...product,
-                  is_exported: isExported,
-                  order_line_id: matchingOrderLine?.id || null // Add the order_lines.id
-                };
-              })
-            }
-          };
-        });
+        // Just pass through the orders data as-is since it already contains order_line_id
+        const updatedOrders = ordersData;
 
         setOrders(updatedOrders);
       } catch (error) {

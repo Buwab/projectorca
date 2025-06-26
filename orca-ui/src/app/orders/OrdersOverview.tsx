@@ -107,7 +107,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         product_index: productIndex
       });
 
-      const response = await fetch("http://localhost:8005/send-to-trello", {
+      const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

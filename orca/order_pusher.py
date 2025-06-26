@@ -89,65 +89,34 @@ def create_trello_card(order_id: str, product: Dict[str, Any]) -> bool:
         logger.error(f"Error creating Trello card: {str(e)}", exc_info=True)
         return False
 
-def update_product_sent_status(order_id: str, product_index: int, sent: bool = True) -> bool:
-    """Update the sent status of a specific product in an order"""
+def update_product_sent_status(product: Dict[str, Any], sent: bool = True) -> bool:
+    """Update the sent status of a specific product using order_line_id"""
     try:
         if not supabase:
             logger.error("Supabase client not initialized")
             return False
             
-        logger.info(f"Updating export status for order {order_id}, product index {product_index}")
-        
-        # First get the current order to find the structured_order_id
-        response = supabase.from_('orders').select('*').eq('id', order_id).execute()
-        if not response.data:
-            logger.error(f"Order {order_id} not found in database")
+        order_line_id = product.get('order_line_id')
+        if not order_line_id:
+            logger.error("No order_line_id provided in product data")
+            logger.error(f"Product data received: {product}")
             return False
             
-        order = response.data[0]
+        logger.info(f"Updating export status for order_line_id {order_line_id}")
         
-        # Get the structured order ID
-        structured_response = supabase.table('orders_structured').select('id').eq('email_id', order_id).execute()
-        if not structured_response.data:
-            logger.error(f"Structured order not found for email_id {order_id}")
-            return False
-            
-        structured_order_id = structured_response.data[0]['id']
-        logger.info(f"Found structured order ID: {structured_order_id}")
-        
-        # Get the product details from parsed_data
-        parsed_data = order.get('parsed_data', {})
-        products = parsed_data.get('products', [])
-        if not (0 <= product_index < len(products)):
-            logger.error(f"Product index {product_index} out of range")
-            return False
-            
-        product = products[product_index]
-        
-        # Find and update the corresponding order_line
-        order_line_response = supabase.table('order_lines').select('*').eq('order_id', structured_order_id).eq('product_name', product.get('name')).execute()
-        if not order_line_response.data:
-            logger.error(f"Order line not found for product {product.get('name')}")
-            return False
-            
-        order_line = order_line_response.data[0]
-        logger.info(f"Found order line: {order_line}")
-        
-        # Update the is_exported status
+        # Update the is_exported status directly using order_line_id
         update_response = supabase.table('order_lines').update({
             'is_exported': sent
-        }).eq('id', order_line['id']).execute()
+        }).eq('id', order_line_id).execute()
+        
+        logger.info(f"Update response: {update_response}")
         
         success = bool(update_response.data)
         if success:
-            logger.info(f"Successfully updated order_line {order_line['id']} exported status to {sent}")
-            
-            # NOTE: Removed updating parsed_data - UI should only rely on database
-            # The frontend will fetch the current status from order_lines table
-            
+            logger.info(f"Successfully updated order_line {order_line_id} exported status to {sent}")
             return True
         else:
-            logger.error("Failed to update order line exported status")
+            logger.error(f"Failed to update order line {order_line_id} exported status")
             return False
             
     except Exception as e:

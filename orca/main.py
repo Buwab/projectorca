@@ -15,7 +15,7 @@ app = FastAPI()
 # 🛡️ CORS: More specific configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,7 +44,8 @@ def send_to_trello(request: SendOrderRequest):
             
         # Update the sent status in the database
         logger.info("Attempting to update product sent status")
-        status_updated = update_product_sent_status(request.order_id, request.product_index)
+        logger.info(f"Product data being sent to update function: {request.product}")
+        status_updated = update_product_sent_status(request.product)
         if not status_updated:
             logger.error("Failed to update sent status")
             raise HTTPException(status_code=500, detail="Failed to update sent status")
