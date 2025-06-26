@@ -13,7 +13,7 @@ BOARD_ID = os.getenv('TRELLO_BOARD_ID')
 LIST_ID = os.getenv('TRELLO_LIST_ID')
 
 # Hardcoded order_lines.id
-ORDER_LINE_ID = 'a9daedd1-dd97-4c47-856f-0de6768883cd'  # Replace with actual ID for testing
+ORDER_LINE_ID = '71874245-d3f2-420e-8128-811e027a497e'  # Replace with actual ID for testing
 
 # Supabase credentials
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -44,6 +44,9 @@ def create_trello_card(order_data):
     print(f"Trello Key: {TRELLO_KEY}")  # Debugging line
     print(f"Trello Token: {TRELLO_TOKEN}")  # Debugging line
 
+    customer_name = order_data['orders_structured'].get('customer_name', 'Unknown Customer')
+    product_name = order_data.get('product_name', 'Unknown Product')
+
     url = f'https://api.trello.com/1/cards'
     headers = {
         'Accept': 'application/json'
@@ -52,13 +55,13 @@ def create_trello_card(order_data):
         'key': TRELLO_KEY,
         'token': TRELLO_TOKEN,
         'idList': LIST_ID,
-        'name': f"Order {order_data['id']}",
+        'name': f"Order {customer_name} {product_name}",
         'desc': f"""
         Order ID: {order_data['id']}
         Product Name: {order_data['product_name']}
         Quantity: {order_data['quantity']} {order_data['unit']}
         Delivery Date: {order_data['delivery_date']}
-        Customer Name: {order_data['orders_structured']['customer_name']}
+        Customer Name: {customer_name}
         Order Date: {order_data['orders_structured']['order_date']}
         Special Notes: {order_data['orders_structured']['special_notes']}
         """
