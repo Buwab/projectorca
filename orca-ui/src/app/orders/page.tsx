@@ -105,7 +105,14 @@ export default function Page() {
             ...order,
             parsed_data: {
               ...order.parsed_data,
-              products: order.parsed_data.products.map(product => {
+              products: order.parsed_data.products.map((product: {
+                name: string;
+                quantity: number;
+                unit: string;
+                delivery_date?: string;
+                is_exported?: boolean;
+                order_line_id?: string | null;
+              }) => {
                 // Try to find the matching order line for this product
                 const matchingOrderLine = orderLinesForThisOrder.find(line => 
                   line.product_name === product.name &&
