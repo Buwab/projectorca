@@ -114,7 +114,14 @@ export default function Page() {
                 order_line_id?: string | null;
               }) => {
                 // Try to find the matching order line for this product
-                const matchingOrderLine = orderLinesForThisOrder.find(line => 
+                const matchingOrderLine = orderLinesForThisOrder.find((line: {
+                  id: string;
+                  order_id: string;
+                  product_name: string;
+                  quantity: number;
+                  unit: string;
+                  is_exported: boolean;
+                }) => 
                   line.product_name === product.name &&
                   line.quantity === product.quantity &&
                   line.unit === product.unit
