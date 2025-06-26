@@ -101,11 +101,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setSendingOrders(prev => new Set(prev).add(productKey));
     
     try {
-      console.log('Attempting to send order:', {
-        order_id: selectedOrder?.id,
-        product,
-        product_index: productIndex
-      });
+      console.log('🚀 ATTEMPTING TO SEND ORDER');
+      console.log('Selected Order ID:', selectedOrder?.id);
+      console.log('Product being sent:', product);
+      console.log('Product has order_line_id?', !!product.order_line_id);
+      console.log('Product order_line_id value:', product.order_line_id);
+      console.log('Product index:', productIndex);
 
       const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
         method: "POST",

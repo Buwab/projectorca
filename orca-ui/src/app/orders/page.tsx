@@ -95,11 +95,21 @@ export default function Page() {
         }
 
         // Enrich the orders data with order_line_id from the order_lines table
+        console.log('Starting data enrichment...');
+        console.log('Total orders:', ordersData.length);
+        console.log('All order lines map:', allOrderLinesMap);
+        
         const updatedOrders = ordersData.map(order => {
           if (!order.parsed_data?.products) return order;
           
           const orderLinesForThisOrder = allOrderLinesMap.get(order.id) || [];
           const exportedProductsForThisOrder = exportedProducts.get(order.id) || new Set();
+          
+          console.log(`Processing order ${order.id}:`, {
+            orderLinesCount: orderLinesForThisOrder.length,
+            productsCount: order.parsed_data.products.length,
+            orderLines: orderLinesForThisOrder
+          });
           
           return {
             ...order,
@@ -114,6 +124,9 @@ export default function Page() {
                 order_line_id?: string | null;
               }) => {
                 // Try to find the matching order line for this product
+                console.log(`Looking for match for product:`, product);
+                console.log(`Available order lines:`, orderLinesForThisOrder);
+                
                 const matchingOrderLine = orderLinesForThisOrder.find((line: {
                   id: string;
                   order_id: string;
@@ -127,15 +140,20 @@ export default function Page() {
                   line.unit === product.unit
                 );
                 
+                console.log(`Matching order line found:`, matchingOrderLine);
+                
                 // Check if this product is exported
                 const productKey = `${product.name}|${product.quantity}|${product.unit}`;
                 const isExported = exportedProductsForThisOrder.has(productKey);
                 
-                return {
+                const enrichedProduct = {
                   ...product,
                   order_line_id: matchingOrderLine?.id || null,
                   is_exported: isExported
                 };
+                
+                console.log(`Enriched product:`, enrichedProduct);
+                return enrichedProduct;
               })
             }
           };
