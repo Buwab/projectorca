@@ -9,23 +9,13 @@ import { supabase } from "@/lib/supabaseClient";
 import React from "react";
 import { Loader2 } from "lucide-react";
 
-
-
-interface OrderLine {
-  order_id: string;
-  product_name: string;
+interface Product {
+  name: string;
   quantity: number;
   unit: string;
   delivery_date?: string;
-
   is_exported?: boolean;
   order_line_id?: string | null;
-}
-
-interface ParsedData {
-  products?: Product[];
-  [key: string]: unknown;
-
 }
 
 interface Order {
@@ -34,13 +24,15 @@ interface Order {
   subject: string;
   sender: string;
   email_body: string;
-  parsed_data: Record<string, unknown>;
+  parsed_data: {
+    products?: Product[];
+    [key: string]: unknown;
+  };
 }
 
 export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [feedbackText, setFeedbackText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -50,32 +42,9 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
 
   // Sync with parent component when initialOrders changes
-
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
-
-
-
-  const fetchOrderLines = async (emailId: string) => {
-    const { data: structured } = await supabase
-      .from("orders_structured")
-      .select("id")
-      .eq("email_id", emailId)
-      .maybeSingle();
-
-    if (!structured) {
-      setOrderLines([]);
-      return;
-    }
-
-    const { data: lines } = await supabase
-      .from("order_lines")
-      .select("*")
-      .eq("order_id", structured.id);
-
-    if (lines) setOrderLines(lines as OrderLine[]);
-  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,10 +77,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         setProcessResult(`❌ Fout: ${json.message}`);
       } else {
         setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
-
         // Trigger a page refresh to get updated data through the parent component
         window.location.reload();
-
       }
     } catch {
       setProcessResult("❌ Fout bij verbinden met backend");
@@ -119,7 +86,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       setProcessing(false);
     }
   };
-
 
   const handleSendOrder = async (product: Product, productIndex: number) => {
     if (!product.delivery_date) return;
