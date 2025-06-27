@@ -46,6 +46,16 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setOrders(initialOrders);
   }, [initialOrders]);
 
+  // Keep selectedOrder synchronized with the orders array
+  useEffect(() => {
+    if (selectedOrder) {
+      const updatedSelectedOrder = orders.find(order => order.id === selectedOrder.id);
+      if (updatedSelectedOrder && updatedSelectedOrder !== selectedOrder) {
+        setSelectedOrder(updatedSelectedOrder);
+      }
+    }
+  }, [orders, selectedOrder]);
+
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder) return;
@@ -97,8 +107,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       return;
     }
     
-    // Create a unique key for this specific product using its properties
-    const productKey = `${selectedOrder?.id}-${product.name}-${product.quantity}-${product.unit}-${product.delivery_date}`;
+    // Use order_line_id as the unique key for tracking sending state
+    const productKey = product.order_line_id;
     setSendingOrders(prev => new Set(prev).add(productKey));
     
     try {
@@ -129,7 +139,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       }
 
       if (result.status === "success") {
-        // Phase 1: Immediate UI update using order_line_id (this is already correct)
+        // Immediate UI update: Update orders state (selectedOrder will be synced by useEffect)
         setOrders(prevOrders => {
           return prevOrders.map(order => {
             if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
@@ -152,62 +162,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
             };
           });
         });
-
-        // Phase 1: Simple database refresh for consistency (removing complex mapping)
-        // Just refresh the current order's data to ensure UI matches database reality
-        if (selectedOrder?.id) {
-          const { data: refreshedOrder } = await supabase
-            .from("orders")
-            .select("*")
-            .eq("id", selectedOrder.id)
-            .single();
-            
-          if (refreshedOrder) {
-            // Get the order lines for this specific order to verify the update
-            const { data: structuredOrder } = await supabase
-              .from("orders_structured")
-              .select("id")
-              .eq("email_id", selectedOrder.id)
-              .single();
-              
-            if (structuredOrder) {
-              const { data: orderLines } = await supabase
-                .from("order_lines")
-                .select("id, product_name, quantity, unit, is_exported")
-                .eq("order_id", structuredOrder.id);
-                
-              if (orderLines) {
-                // Re-enrich the current order with fresh database data
-                setOrders(prevOrders => {
-                  return prevOrders.map(order => {
-                    if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
-                    
-                    return {
-                      ...order,
-                      parsed_data: {
-                        ...order.parsed_data,
-                        products: order.parsed_data.products.map(p => {
-                          // Find the matching order line using the same logic as page.tsx
-                          const matchingOrderLine = orderLines.find(line =>
-                            line.product_name === p.name &&
-                            line.quantity === p.quantity &&
-                            line.unit === p.unit
-                          );
-                          
-                          return {
-                            ...p,
-                            order_line_id: matchingOrderLine?.id || p.order_line_id,
-                            is_exported: matchingOrderLine?.is_exported || p.is_exported
-                          };
-                        })
-                      }
-                    };
-                  });
-                });
-              }
-            }
-          }
-        }
         
         console.log('✅ Order sent successfully and UI updated');
       } else {
@@ -318,8 +272,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                           <div key={date} className="mb-3">
                             <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
                             {products.map((p, i) => {
-                              // Create the same unique key for this specific product
-                              const productKey = `${selectedOrder?.id}-${p.name}-${p.quantity}-${p.unit}-${p.delivery_date}`;
+                              // Use order_line_id as the unique key for this specific product
+                              const productKey = p.order_line_id;
                               
                               return (
                                 <div key={i} className="flex justify-between text-sm border-b py-1">
@@ -332,11 +286,11 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                                         size="icon"
                                         className="ml-2 h-6 w-6 hover:bg-slate-100"
                                         onClick={() => handleSendOrder(p, i)}
-                                        disabled={p.is_exported || sendingOrders.has(productKey)}
+                                        disabled={p.is_exported || (productKey && sendingOrders.has(productKey))}
                                       >
                                         {p.is_exported ? (
                                           "✅"
-                                        ) : sendingOrders.has(productKey) ? (
+                                        ) : (productKey && sendingOrders.has(productKey)) ? (
                                           <Loader2 className="h-4 w-4 animate-spin" />
                                         ) : (
                                           "📤"
