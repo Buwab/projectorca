@@ -1,2 +1,5 @@
-orca/.env
-orca/.env
+.env
+node_modules/
+orca-ui/node_modules/
+*.log
+.DS_Store

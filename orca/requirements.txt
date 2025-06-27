@@ -5,3 +5,4 @@ imapclient
 beautifulsoup4
 openai
 supabase
+requests
