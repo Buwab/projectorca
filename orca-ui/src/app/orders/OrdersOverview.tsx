@@ -286,7 +286,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                                         size="icon"
                                         className="ml-2 h-6 w-6 hover:bg-slate-100"
                                         onClick={() => handleSendOrder(p, i)}
-                                        disabled={p.is_exported || (productKey && sendingOrders.has(productKey))}
+                                        disabled={!!p.is_exported || (!!productKey && sendingOrders.has(productKey))}
                                       >
                                         {p.is_exported ? (
                                           "✅"
