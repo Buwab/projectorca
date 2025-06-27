@@ -218,10 +218,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
             <Card 
               key={order.id} 
               onClick={() => setSelectedOrder(order)} 
-              className={`cursor-pointer transition-all duration-200 ease-in-out 
+              className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
                          hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
                          active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
-                         ${selectedOrder?.id === order.id ? 'border-2 border-gray-800 bg-gray-50/50 shadow-md' : ''}
+                         ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
                          `}
             >
 
