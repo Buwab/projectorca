@@ -34,6 +34,14 @@ def root():
 def send_to_trello(request: SendOrderRequest):
     try:
         logger.info(f"Received request to send order {request.order_id} to Trello")
+        logger.info(f"Product data: {request.product}")
+        
+        # Validate that we have an order_line_id
+        if not request.product.get('order_line_id'):
+            error_msg = "Product is missing order_line_id. This usually means the order hasn't been properly imported into the structured tables."
+            logger.error(error_msg)
+            logger.error(f"Product data received: {request.product}")
+            raise HTTPException(status_code=400, detail=error_msg)
         
         # Create the Trello card
         logger.info("Attempting to create Trello card")
@@ -48,11 +56,14 @@ def send_to_trello(request: SendOrderRequest):
         status_updated = update_product_sent_status(request.product)
         if not status_updated:
             logger.error("Failed to update sent status")
-            raise HTTPException(status_code=500, detail="Failed to update sent status")
+            raise HTTPException(status_code=500, detail="Failed to update sent status in database")
             
         logger.info("Successfully processed Trello request")
         return {"status": "success", "message": "Order sent to Trello successfully"}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"Error processing Trello request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

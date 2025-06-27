@@ -90,6 +90,13 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const handleSendOrder = async (product: Product, productIndex: number) => {
     if (!product.delivery_date) return;
     
+    // Phase 2: Add validation to ensure order_line_id exists
+    if (!product.order_line_id) {
+      alert("Error: This product doesn't have an order_line_id. Please refresh the page and try again.");
+      console.error("Missing order_line_id for product:", product);
+      return;
+    }
+    
     // Create a unique key for this specific product using its properties
     const productKey = `${selectedOrder?.id}-${product.name}-${product.quantity}-${product.unit}-${product.delivery_date}`;
     setSendingOrders(prev => new Set(prev).add(productKey));
@@ -98,8 +105,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       console.log('🚀 ATTEMPTING TO SEND ORDER');
       console.log('Selected Order ID:', selectedOrder?.id);
       console.log('Product being sent:', product);
-      console.log('Product has order_line_id?', !!product.order_line_id);
-      console.log('Product order_line_id value:', product.order_line_id);
+      console.log('Product order_line_id:', product.order_line_id);
       console.log('Product index:', productIndex);
 
       const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
@@ -123,7 +129,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       }
 
       if (result.status === "success") {
-        // 1st: Immediately update the UI for instant feedback using order_line_id
+        // Phase 1: Immediate UI update using order_line_id (this is already correct)
         setOrders(prevOrders => {
           return prevOrders.map(order => {
             if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
@@ -147,63 +153,63 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
           });
         });
 
-        // Second: Sync with database in the background for consistency
-        // Get all exported order lines
-        const { data: exportedLines } = await supabase
-          .from("order_lines")
-          .select("order_id, product_name, quantity, unit")
-          .eq("is_exported", true);
-
-        // Get the mapping of email_id to structured_order_id
-        const { data: structuredOrders } = await supabase
-          .from("orders_structured")
-          .select("id, email_id");
-
-        if (exportedLines && structuredOrders) {
-          // Create a map of structured_id to email_id for easier lookup
-          const structuredToEmailMap = new Map(
-            structuredOrders.map(so => [so.id, so.email_id])
-          );
-
-          // Create a map of email_ids to their exported products
-          const exportedProducts = new Map();
-          exportedLines.forEach(line => {
-            const emailId = structuredToEmailMap.get(line.order_id);
-            if (emailId) {
-              if (!exportedProducts.has(emailId)) {
-                exportedProducts.set(emailId, new Set());
-              }
-              // Create a more specific key: "product_name|quantity|unit"
-              const productKey = `${line.product_name}|${line.quantity}|${line.unit}`;
-              exportedProducts.get(emailId).add(productKey);
-            }
-          });
-
-          // Update orders state with database truth (this will override the immediate update if needed)
-          setOrders(prevOrders => {
-            return prevOrders.map(order => {
-              if (!order.parsed_data?.products) return order;
-
-              const exportedProductsForOrder = exportedProducts.get(order.id) || new Set();
+        // Phase 1: Simple database refresh for consistency (removing complex mapping)
+        // Just refresh the current order's data to ensure UI matches database reality
+        if (selectedOrder?.id) {
+          const { data: refreshedOrder } = await supabase
+            .from("orders")
+            .select("*")
+            .eq("id", selectedOrder.id)
+            .single();
+            
+          if (refreshedOrder) {
+            // Get the order lines for this specific order to verify the update
+            const { data: structuredOrder } = await supabase
+              .from("orders_structured")
+              .select("id")
+              .eq("email_id", selectedOrder.id)
+              .single();
               
-              return {
-                ...order,
-                parsed_data: {
-                  ...order.parsed_data,
-                  products: order.parsed_data.products.map(p => {
-                    // Create the same specific key for matching
-                    const productKey = `${p.name}|${p.quantity}|${p.unit}`;
-                    const isExported = exportedProductsForOrder.has(productKey);
+            if (structuredOrder) {
+              const { data: orderLines } = await supabase
+                .from("order_lines")
+                .select("id, product_name, quantity, unit, is_exported")
+                .eq("order_id", structuredOrder.id);
+                
+              if (orderLines) {
+                // Re-enrich the current order with fresh database data
+                setOrders(prevOrders => {
+                  return prevOrders.map(order => {
+                    if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
+                    
                     return {
-                      ...p,
-                      is_exported: isExported
+                      ...order,
+                      parsed_data: {
+                        ...order.parsed_data,
+                        products: order.parsed_data.products.map(p => {
+                          // Find the matching order line using the same logic as page.tsx
+                          const matchingOrderLine = orderLines.find(line =>
+                            line.product_name === p.name &&
+                            line.quantity === p.quantity &&
+                            line.unit === p.unit
+                          );
+                          
+                          return {
+                            ...p,
+                            order_line_id: matchingOrderLine?.id || p.order_line_id,
+                            is_exported: matchingOrderLine?.is_exported || p.is_exported
+                          };
+                        })
+                      }
                     };
-                  })
-                }
-              };
-            });
-          });
+                  });
+                });
+              }
+            }
+          }
         }
+        
+        console.log('✅ Order sent successfully and UI updated');
       } else {
         throw new Error(result.message || "Failed to send order to Trello");
       }

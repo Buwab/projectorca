@@ -100,9 +100,20 @@ def update_product_sent_status(product: Dict[str, Any], sent: bool = True) -> bo
         if not order_line_id:
             logger.error("No order_line_id provided in product data")
             logger.error(f"Product data received: {product}")
+            logger.error("Available product keys: %s", list(product.keys()))
             return False
             
-        logger.info(f"Updating export status for order_line_id {order_line_id}")
+        logger.info(f"Updating export status for order_line_id {order_line_id} to {sent}")
+        
+        # First, verify the order line exists
+        check_response = supabase.table('order_lines').select('id, product_name, is_exported').eq('id', order_line_id).execute()
+        
+        if not check_response.data:
+            logger.error(f"Order line with id {order_line_id} not found in database")
+            return False
+            
+        existing_line = check_response.data[0]
+        logger.info(f"Found order line: {existing_line['product_name']} (current exported status: {existing_line['is_exported']})")
         
         # Update the is_exported status directly using order_line_id
         update_response = supabase.table('order_lines').update({
@@ -111,12 +122,13 @@ def update_product_sent_status(product: Dict[str, Any], sent: bool = True) -> bo
         
         logger.info(f"Update response: {update_response}")
         
-        success = bool(update_response.data)
-        if success:
-            logger.info(f"Successfully updated order_line {order_line_id} exported status to {sent}")
+        if update_response.data and len(update_response.data) > 0:
+            updated_line = update_response.data[0]
+            logger.info(f"Successfully updated order_line {order_line_id} exported status from {existing_line['is_exported']} to {updated_line['is_exported']}")
             return True
         else:
-            logger.error(f"Failed to update order line {order_line_id} exported status")
+            logger.error(f"Update succeeded but no data returned for order line {order_line_id}")
+            logger.error(f"Update response: {update_response}")
             return False
             
     except Exception as e:
