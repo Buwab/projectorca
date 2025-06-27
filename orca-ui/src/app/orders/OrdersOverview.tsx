@@ -11,11 +11,13 @@ import { Loader2 } from "lucide-react";
 
 
 
-interface Product {
-  name: string;
+interface OrderLine {
+  order_id: string;
+  product_name: string;
   quantity: number;
   unit: string;
   delivery_date?: string;
+
   is_exported?: boolean;
   order_line_id?: string | null;
 }
@@ -23,6 +25,7 @@ interface Product {
 interface ParsedData {
   products?: Product[];
   [key: string]: unknown;
+
 }
 
 interface Order {
@@ -31,12 +34,13 @@ interface Order {
   subject: string;
   sender: string;
   email_body: string;
-  parsed_data: ParsedData;
+  parsed_data: Record<string, unknown>;
 }
 
 export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [feedbackText, setFeedbackText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -46,11 +50,32 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
 
   // Sync with parent component when initialOrders changes
+
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
 
 
+
+  const fetchOrderLines = async (emailId: string) => {
+    const { data: structured } = await supabase
+      .from("orders_structured")
+      .select("id")
+      .eq("email_id", emailId)
+      .maybeSingle();
+
+    if (!structured) {
+      setOrderLines([]);
+      return;
+    }
+
+    const { data: lines } = await supabase
+      .from("order_lines")
+      .select("*")
+      .eq("order_id", structured.id);
+
+    if (lines) setOrderLines(lines as OrderLine[]);
+  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,8 +108,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         setProcessResult(`❌ Fout: ${json.message}`);
       } else {
         setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
+
         // Trigger a page refresh to get updated data through the parent component
         window.location.reload();
+
       }
     } catch {
       setProcessResult("❌ Fout bij verbinden met backend");
@@ -92,6 +119,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       setProcessing(false);
     }
   };
+
 
   const handleSendOrder = async (product: Product, productIndex: number) => {
     if (!product.delivery_date) return;
@@ -236,6 +264,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       const date = p.delivery_date || "Onbekende datum";
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(p);
+
     });
     return grouped;
   };
@@ -259,7 +288,9 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
           {paginatedOrders.map((order) => (
+            
             <Card key={order.id} onClick={() => setSelectedOrder(order)} className="cursor-pointer">
+
               <CardHeader>
                 <CardTitle className="text-sm">{order.subject}</CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -308,6 +339,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                   </TabsList>
 
                   <TabsContent value="lines">
+
                     {selectedOrder.parsed_data?.products ? (
                       Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
                         ([date, products]) => (
@@ -346,6 +378,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                           </div>
                         )
                       )
+
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
