@@ -129,7 +129,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       }
 
       if (result.status === "success") {
-        // First: Immediately update the UI for instant feedback using order_line_id
+        // 1st: Immediately update the UI for instant feedback using order_line_id
         setOrders(prevOrders => {
           return prevOrders.map(order => {
             if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
