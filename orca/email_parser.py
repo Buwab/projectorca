@@ -1,8 +1,8 @@
+import os
 from imapclient import IMAPClient
 import email
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-import os
 from supabase_client import store_email
 
 # 🔧 Load .env settings
@@ -38,12 +38,23 @@ def process_emails():
             raw_email = msg_data[b"RFC822"]
             msg = email.message_from_bytes(raw_email)
 
-            subject = msg["subject"]
-            sender = msg["from"]
+            subject = msg.get("Subject", "")
+            sender = msg.get("From", "")
+            message_id = msg.get("Message-ID", "")
+            in_reply_to = msg.get("In-Reply-To", "")
+            message_references = msg.get("References", "")
+
             body = extract_body(msg)
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender}")
-            store_email(subject, sender, body)
+            store_email(
+                subject=subject,
+                sender=sender,
+                body=body,
+                message_id=message_id,
+                in_reply_to=in_reply_to,
+                message_references=message_references
+            )
 
             server.add_flags(uid, [b"\\Seen"])
 

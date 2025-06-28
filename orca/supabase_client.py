@@ -13,14 +13,17 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Supabase credentials ontbreken. Check je .env bestand.")
 
-# create client
+# Create Supabase client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def store_email(subject, sender, body, status="raw"):
+def store_email(subject, sender, body, message_id, in_reply_to, message_references, status="raw"):
     data = {
         "subject": subject,
         "sender": sender,
         "email_body": body,
+        "message_id": message_id,
+        "in_reply_to": in_reply_to,
+        "message_references": message_references,
         "status": status,
     }
     try:

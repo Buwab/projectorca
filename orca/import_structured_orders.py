@@ -32,13 +32,17 @@ def import_structured_orders():
 
             # ⬇️ Insert in orders_structured
             order_structured_data = {
-                "email_id": email_id,
-                "order_number": parsed.get("order_number"),
-                "customer_name": parsed.get("customer_name"),
-                "order_date": parsed.get("order_date"),
-                "delivery_date": parsed.get("delivery_date"),
-                "special_notes": parsed.get("special_notes"),
-            }
+            "email_id": email_id,
+            "sender": order.get("sender"),  # ✅ toegevoegde regel
+            "order_number": parsed.get("order_number"),
+            "customer_name": parsed.get("customer_name"),
+            "order_date": parsed.get("order_date"),
+            "delivery_date": parsed.get("delivery_date"),
+            "special_notes": parsed.get("special_notes"),
+            "parent_order_id": parsed.get("parent_order_id"),
+            "update_probability": parsed.get("update_probability"),
+            "products": parsed.get("products")
+    }
 
             response_structured = supabase.table("orders_structured").insert(order_structured_data).execute()
             structured_id = response_structured.data[0]["id"]
