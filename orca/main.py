@@ -24,15 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🛡️ CORS: zodat je frontend (bijv. localhost:3000) mag aanroepen
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Of specifieker: ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 @app.get("/")
 def root():
     return {"message": "API is running."}
