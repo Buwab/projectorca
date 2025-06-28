@@ -5,6 +5,9 @@ from order_pusher import create_trello_card, update_product_sent_status
 from pydantic import BaseModel
 from typing import Dict, Any
 import logging
+from email_parser import run as run_email_parser
+from llm_parser import run as run_llm_parser
+from import_structured_orders import run as run_import_orders
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
