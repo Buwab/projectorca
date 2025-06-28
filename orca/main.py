@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# 🛡️ CORS: More specific configuration
+# 🛡️ CORS: More specific configurations
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for now to fix the CORS issue
