@@ -46,6 +46,16 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setOrders(initialOrders);
   }, [initialOrders]);
 
+  // Keep selectedOrder synchronized with the orders array
+  useEffect(() => {
+    if (selectedOrder) {
+      const updatedSelectedOrder = orders.find(order => order.id === selectedOrder.id);
+      if (updatedSelectedOrder && updatedSelectedOrder !== selectedOrder) {
+        setSelectedOrder(updatedSelectedOrder);
+      }
+    }
+  }, [orders, selectedOrder]);
+
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder) return;
@@ -90,16 +100,22 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const handleSendOrder = async (product: Product, productIndex: number) => {
     if (!product.delivery_date) return;
     
-    // Create a unique key for this specific product using its properties
-    const productKey = `${selectedOrder?.id}-${product.name}-${product.quantity}-${product.unit}-${product.delivery_date}`;
+    // Phase 2: Add validation to ensure order_line_id exists
+    if (!product.order_line_id) {
+      alert("Error: This product doesn't have an order_line_id. Please refresh the page and try again.");
+      console.error("Missing order_line_id for product:", product);
+      return;
+    }
+    
+    // Use order_line_id as the unique key for tracking sending state
+    const productKey = product.order_line_id;
     setSendingOrders(prev => new Set(prev).add(productKey));
     
     try {
       console.log('🚀 ATTEMPTING TO SEND ORDER');
       console.log('Selected Order ID:', selectedOrder?.id);
       console.log('Product being sent:', product);
-      console.log('Product has order_line_id?', !!product.order_line_id);
-      console.log('Product order_line_id value:', product.order_line_id);
+      console.log('Product order_line_id:', product.order_line_id);
       console.log('Product index:', productIndex);
 
       const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
@@ -123,7 +139,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       }
 
       if (result.status === "success") {
-        // 1st: Immediately update the UI for instant feedback using order_line_id
+        // Immediate UI update: Update orders state (selectedOrder will be synced by useEffect)
         setOrders(prevOrders => {
           return prevOrders.map(order => {
             if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
@@ -146,64 +162,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
             };
           });
         });
-
-        // Second: Sync with database in the background for consistency
-        // Get all exported order lines
-        const { data: exportedLines } = await supabase
-          .from("order_lines")
-          .select("order_id, product_name, quantity, unit")
-          .eq("is_exported", true);
-
-        // Get the mapping of email_id to structured_order_id
-        const { data: structuredOrders } = await supabase
-          .from("orders_structured")
-          .select("id, email_id");
-
-        if (exportedLines && structuredOrders) {
-          // Create a map of structured_id to email_id for easier lookup
-          const structuredToEmailMap = new Map(
-            structuredOrders.map(so => [so.id, so.email_id])
-          );
-
-          // Create a map of email_ids to their exported products
-          const exportedProducts = new Map();
-          exportedLines.forEach(line => {
-            const emailId = structuredToEmailMap.get(line.order_id);
-            if (emailId) {
-              if (!exportedProducts.has(emailId)) {
-                exportedProducts.set(emailId, new Set());
-              }
-              // Create a more specific key: "product_name|quantity|unit"
-              const productKey = `${line.product_name}|${line.quantity}|${line.unit}`;
-              exportedProducts.get(emailId).add(productKey);
-            }
-          });
-
-          // Update orders state with database truth (this will override the immediate update if needed)
-          setOrders(prevOrders => {
-            return prevOrders.map(order => {
-              if (!order.parsed_data?.products) return order;
-
-              const exportedProductsForOrder = exportedProducts.get(order.id) || new Set();
-              
-              return {
-                ...order,
-                parsed_data: {
-                  ...order.parsed_data,
-                  products: order.parsed_data.products.map(p => {
-                    // Create the same specific key for matching
-                    const productKey = `${p.name}|${p.quantity}|${p.unit}`;
-                    const isExported = exportedProductsForOrder.has(productKey);
-                    return {
-                      ...p,
-                      is_exported: isExported
-                    };
-                  })
-                }
-              };
-            });
-          });
-        }
+        
+        console.log('✅ Order sent successfully and UI updated');
       } else {
         throw new Error(result.message || "Failed to send order to Trello");
       }
@@ -255,7 +215,15 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         <div className="space-y-2 max-h-[80vh] overflow-auto">
           {paginatedOrders.map((order) => (
             
-            <Card key={order.id} onClick={() => setSelectedOrder(order)} className="cursor-pointer">
+            <Card 
+              key={order.id} 
+              onClick={() => setSelectedOrder(order)} 
+              className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
+                         hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
+                         active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
+                         ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
+                         `}
+            >
 
               <CardHeader>
                 <CardTitle className="text-sm">{order.subject}</CardTitle>
@@ -312,8 +280,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                           <div key={date} className="mb-3">
                             <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
                             {products.map((p, i) => {
-                              // Create the same unique key for this specific product
-                              const productKey = `${selectedOrder?.id}-${p.name}-${p.quantity}-${p.unit}-${p.delivery_date}`;
+                              // Use order_line_id as the unique key for this specific product
+                              const productKey = p.order_line_id;
                               
                               return (
                                 <div key={i} className="flex justify-between text-sm border-b py-1">
@@ -326,11 +294,11 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                                         size="icon"
                                         className="ml-2 h-6 w-6 hover:bg-slate-100"
                                         onClick={() => handleSendOrder(p, i)}
-                                        disabled={p.is_exported || sendingOrders.has(productKey)}
+                                        disabled={!!p.is_exported || (!!productKey && sendingOrders.has(productKey))}
                                       >
                                         {p.is_exported ? (
                                           "✅"
-                                        ) : sendingOrders.has(productKey) ? (
+                                        ) : (productKey && sendingOrders.has(productKey)) ? (
                                           <Loader2 className="h-4 w-4 animate-spin" />
                                         ) : (
                                           "📤"

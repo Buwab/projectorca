@@ -5,6 +5,9 @@ from order_pusher import create_trello_card, update_product_sent_status
 from pydantic import BaseModel
 from typing import Dict, Any
 import logging
+from email_parser import run as run_email_parser
+from llm_parser import run as run_llm_parser
+from import_structured_orders import run as run_import_orders
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# 🛡️ CORS: More specific configuration
+# 🛡️ CORS: More specific configurations
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for now to fix the CORS issue
@@ -20,6 +23,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def root():
+    return {"message": "API is running."}
+
+@app.post("/process-all")
+def process_all():
+    try:
+        email_result = run_email_parser()         # bijv. {"emails_found": 2}
+        llm_result = run_llm_parser()             # bijv. {"parsed": 2}
+        import_result = run_import_orders()       # bijv. {"orders_imported": 2}
+
+        return {
+            "status": "done",
+            "email": email_result,
+            "llm": llm_result,
+            "import": import_result
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 class SendOrderRequest(BaseModel):
     order_id: str
