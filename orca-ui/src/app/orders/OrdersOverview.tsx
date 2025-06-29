@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -226,22 +226,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     return grouped;
   };
 
-  const groupedOrderLinesByDate = (orderLines: OrderLine[]) => {
-    const grouped: Record<string, OrderLine[]> = {};
-    orderLines.forEach((line) => {
-      const date = line.delivery_date || "Onbekende datum";
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(line);
-    });
-    return grouped;
-  };
-
   const totalPages = Math.ceil(orders.length / ordersPerPage);
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
   // Fetch all order lines for the current page of orders
-  const fetchAllOrderLinesForCurrentPage = async () => {
+  const fetchAllOrderLinesForCurrentPage = useCallback(async () => {
     if (paginatedOrders.length === 0) return;
     
     console.log('🔍 Fetching order lines for all orders on current page:', paginatedOrders.length);
@@ -280,12 +270,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       }));
       setOrderLines(enrichedLines);
     }
-  };
+  }, [paginatedOrders]);
 
   // Fetch order lines when page changes or orders change
   useEffect(() => {
     fetchAllOrderLinesForCurrentPage();
-  }, [paginatedOrders]);
+  }, [paginatedOrders, fetchAllOrderLinesForCurrentPage]);
 
   return (
     <div className="p-4">
