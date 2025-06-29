@@ -118,7 +118,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     // Phase 2: Add validation to ensure order_line_id exists
     if (!product.order_line_id) {
       alert("Error: This product doesn't have an order_line_id. Please refresh the page and try again.");
-      console.error("Missing order_line_id for product:", product);
       return;
     }
     
@@ -127,12 +126,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setSendingOrders(prev => new Set(prev).add(productKey));
     
     try {
-      console.log('🚀 ATTEMPTING TO SEND ORDER');
-      console.log('Selected Order ID:', selectedOrder?.id);
-      console.log('Product being sent:', product);
-      console.log('Product order_line_id:', product.order_line_id);
-      console.log('Product index:', productIndex);
-
       const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
         method: "POST",
         headers: {
@@ -145,9 +138,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         }),
       });
 
-      console.log('Response status:', response.status);
       const result = await response.json();
-      console.log('Response data:', result);
 
       if (!response.ok) {
         throw new Error(`Failed to send order: ${response.statusText}. Details: ${JSON.stringify(result)}`);
@@ -177,18 +168,11 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
             };
           });
         });
-        
-        console.log('✅ Order sent successfully and UI updated');
       } else {
         throw new Error(result.message || "Failed to send order to Trello");
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("Error sending order:", {
-        error,
-        message: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
       alert("Failed to send order to Trello. Please try again. Error: " + errorMessage);
     } finally {
       setSendingOrders(prev => {
@@ -210,16 +194,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       // Use database delivery date if available, otherwise fall back to LLM date
       const date = matchingOrderLine?.delivery_date || p.delivery_date || "Onbekende datum";
       
-      console.log('🔍 Delivery Date Debug:', {
-        productName: p.name,
-        productOrderLineId: p.order_line_id,
-        llmDeliveryDate: p.delivery_date,
-        databaseDeliveryDate: matchingOrderLine?.delivery_date,
-        finalDate: date,
-        matchingOrderLineFound: !!matchingOrderLine,
-        orderLinesCount: orderLines.length
-      });
-      
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(p);
     });
@@ -239,8 +213,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       
       if (currentPageOrders.length === 0) return;
       
-      console.log('🔍 Fetching order lines for all orders on current page:', currentPageOrders.length);
-      
       // Get all email IDs from the current page
       const emailIds = currentPageOrders.map(order => order.id);
       
@@ -249,8 +221,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         .from("orders_structured")
         .select("id, email_id")
         .in("email_id", emailIds);
-      
-      console.log('🔍 Structured orders found:', structuredOrders);
       
       if (!structuredOrders || structuredOrders.length === 0) {
         setOrderLines([]);
@@ -265,8 +235,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         .from("order_lines")
         .select("id, product_name, quantity, unit, delivery_date, is_exported, order_id")
         .in("order_id", structuredOrderIds);
-      
-      console.log('🔍 All order lines fetched:', allLines);
       
       if (allLines) {
         const enrichedLines = (allLines as OrderLine[]).map(line => ({
