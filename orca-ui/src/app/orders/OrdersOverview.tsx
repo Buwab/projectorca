@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
-import { Loader2 } from "lucide-react";
 import React from "react";
+import { Loader2 } from "lucide-react";
 
-interface OrderLine {
-  order_id: string;
-  product_name: string;
+interface Product {
+  name: string;
   quantity: number;
   unit: string;
   delivery_date?: string;
@@ -25,25 +24,43 @@ interface Order {
   subject: string;
   sender: string;
   email_body: string;
-  parsed_data: Record<string, unknown>;
+  parsed_data: {
+    products?: Product[];
+    [key: string]: unknown;
+  };
 }
+
+
+interface OrderLine {
+  id: string | null;
+  product_name: string;
+  quantity: number;
+  unit: string;
+  delivery_date: string | null;
+  is_exported?: boolean;
+  name?: string; // ← alias voor gebruik in UI
+}
+
 
 export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [feedbackText, setFeedbackText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 50;
+  const ordersPerPage = 7;
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
 
+
+  // Sync with parent component when initialOrders changes
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
-
+  
+  // Keep selectedOrder synchronized with the orders array
   useEffect(() => {
     if (selectedOrder) {
       const updatedSelectedOrder = orders.find(order => order.id === selectedOrder.id);
@@ -53,61 +70,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   }, [orders, selectedOrder]);
 
-  const fetchOrderLines = async (emailId: string) => {
-    const { data: structured } = await supabase
-      .from("orders_structured")
-      .select("id")
-      .eq("email_id", emailId)
-      .maybeSingle();
-
-    if (!structured) {
-      setOrderLines([]);
-      return;
-    }
-
-    const { data: lines } = await supabase
-      .from("order_lines")
-      .select("*")
-      .eq("order_id", structured.id);
-
-    if (lines) setOrderLines(lines as OrderLine[]);
-  };
-
-  const handleSendOrder = async (product: OrderLine, productIndex: number) => {
-    if (!product.delivery_date || !product.order_line_id) return;
-    const productKey = product.order_line_id;
-    setSendingOrders(prev => new Set(prev).add(productKey));
-
-    try {
-      const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order_id: selectedOrder?.id,
-          product,
-          product_index: productIndex
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok || result.status !== "success") {
-        throw new Error(result.message || "Failed to send order to Trello");
-      }
-
-      setOrderLines(prev => prev.map(line =>
-        line.order_line_id === product.order_line_id ? { ...line, is_exported: true } : line
-      ));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      alert("Fout bij verzenden: " + errorMessage);
-    } finally {
-      setSendingOrders(prev => {
-        const next = new Set(prev);
-        next.delete(productKey);
-        return next;
-      });
-    }
-  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +102,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         setProcessResult(`❌ Fout: ${json.message}`);
       } else {
         setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
+        // Trigger a page refresh to get updated data through the parent component
         window.location.reload();
       }
     } catch {
@@ -149,9 +112,123 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
-  const groupedProductsByDate = (lines: OrderLine[]) => {
+  const handleSendOrder = async (product: Product, productIndex: number) => {
+    if (!product.delivery_date) return;
+    
+    // Phase 2: Add validation to ensure order_line_id exists
+    if (!product.order_line_id) {
+      alert("Error: This product doesn't have an order_line_id. Please refresh the page and try again.");
+      console.error("Missing order_line_id for product:", product);
+      return;
+    }
+    
+    // Use order_line_id as the unique key for tracking sending state
+    const productKey = product.order_line_id;
+    setSendingOrders(prev => new Set(prev).add(productKey));
+    
+    try {
+      console.log('🚀 ATTEMPTING TO SEND ORDER');
+      console.log('Selected Order ID:', selectedOrder?.id);
+      console.log('Product being sent:', product);
+      console.log('Product order_line_id:', product.order_line_id);
+      console.log('Product index:', productIndex);
+
+      const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          order_id: selectedOrder?.id,
+          product,
+          product_index: productIndex
+        }),
+      });
+
+      console.log('Response status:', response.status);
+      const result = await response.json();
+      console.log('Response data:', result);
+
+      if (!response.ok) {
+        throw new Error(`Failed to send order: ${response.statusText}. Details: ${JSON.stringify(result)}`);
+      }
+
+      if (result.status === "success") {
+        // Immediate UI update: Update orders state (selectedOrder will be synced by useEffect)
+        setOrders(prevOrders => {
+          return prevOrders.map(order => {
+            if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
+            
+            return {
+              ...order,
+              parsed_data: {
+                ...order.parsed_data,
+                products: order.parsed_data.products.map((p) => {
+                  // Update the specific product that was just sent using its order_line_id
+                  if (p.order_line_id && p.order_line_id === product.order_line_id) {
+                    return {
+                      ...p,
+                      is_exported: true
+                    };
+                  }
+                  return p;
+                })
+              }
+            };
+          });
+        });
+        
+        console.log('✅ Order sent successfully and UI updated');
+      } else {
+        throw new Error(result.message || "Failed to send order to Trello");
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Error sending order:", {
+        error,
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      alert("Failed to send order to Trello. Please try again. Error: " + errorMessage);
+    } finally {
+      setSendingOrders(prev => {
+        const next = new Set(prev);
+        next.delete(productKey);
+        return next;
+      });
+    }
+  };
+
+  const groupedProductsByDate = (products: Product[]) => {
+    const grouped: Record<string, Product[]> = {};
+    products.forEach((p) => {
+      // Find matching order line using order_line_id (much more reliable)
+      const matchingOrderLine = orderLines.find(line => 
+        line.id === p.order_line_id
+      );
+      
+      // Use database delivery date if available, otherwise fall back to LLM date
+      const date = matchingOrderLine?.delivery_date || p.delivery_date || "Onbekende datum";
+      
+      console.log('🔍 Delivery Date Debug:', {
+        productName: p.name,
+        productOrderLineId: p.order_line_id,
+        llmDeliveryDate: p.delivery_date,
+        databaseDeliveryDate: matchingOrderLine?.delivery_date,
+        finalDate: date,
+        matchingOrderLineFound: !!matchingOrderLine,
+        orderLinesCount: orderLines.length
+      });
+      
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(p);
+    });
+    return grouped;
+  };
+
+  const groupedOrderLinesByDate = (orderLines: OrderLine[]) => {
     const grouped: Record<string, OrderLine[]> = {};
-    lines.forEach((line) => {
+    orderLines.forEach((line) => {
       const date = line.delivery_date || "Onbekende datum";
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(line);
@@ -162,6 +239,53 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const totalPages = Math.ceil(orders.length / ordersPerPage);
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+
+  // Fetch all order lines for the current page of orders
+  const fetchAllOrderLinesForCurrentPage = async () => {
+    if (paginatedOrders.length === 0) return;
+    
+    console.log('🔍 Fetching order lines for all orders on current page:', paginatedOrders.length);
+    
+    // Get all email IDs from the current page
+    const emailIds = paginatedOrders.map(order => order.id);
+    
+    // Fetch all structured orders for these emails
+    const { data: structuredOrders } = await supabase
+      .from("orders_structured")
+      .select("id, email_id")
+      .in("email_id", emailIds);
+    
+    console.log('🔍 Structured orders found:', structuredOrders);
+    
+    if (!structuredOrders || structuredOrders.length === 0) {
+      setOrderLines([]);
+      return;
+    }
+    
+    // Get all order line IDs
+    const structuredOrderIds = structuredOrders.map(order => order.id);
+    
+    // Fetch all order lines for these structured orders
+    const { data: allLines } = await supabase
+      .from("order_lines")
+      .select("id, product_name, quantity, unit, delivery_date, is_exported, order_id")
+      .in("order_id", structuredOrderIds);
+    
+    console.log('🔍 All order lines fetched:', allLines);
+    
+    if (allLines) {
+      const enrichedLines = (allLines as OrderLine[]).map(line => ({
+        ...line,
+        name: line.product_name
+      }));
+      setOrderLines(enrichedLines);
+    }
+  };
+
+  // Fetch order lines when page changes or orders change
+  useEffect(() => {
+    fetchAllOrderLinesForCurrentPage();
+  }, [paginatedOrders]);
 
   return (
     <div className="p-4">
@@ -178,14 +302,17 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
           {paginatedOrders.map((order) => (
-            <Card
-              key={order.id}
-              onClick={() => {
-                setSelectedOrder(order);
-                fetchOrderLines(order.id);
-              }}
-              className={`cursor-pointer border-2 ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'} hover:shadow-lg hover:border-gray-400`}
+            
+            <Card 
+              key={order.id} 
+              onClick={() => setSelectedOrder(order)} 
+              className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
+                         hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
+                         active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
+                         ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
+                         `}
             >
+
               <CardHeader>
                 <CardTitle className="text-sm">{order.subject}</CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -233,45 +360,59 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                     <TabsTrigger value="feedback">Feedback</TabsTrigger>
                   </TabsList>
 
+                 
                   <TabsContent value="lines">
-                    {orderLines.length > 0 ? (
-                      Object.entries(groupedProductsByDate(orderLines)).map(([date, products]) => (
-                        <div key={date} className="mb-3">
-                          <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
-                          {products.map((p, i) => {
-                            const productKey = p.order_line_id || `${p.product_name}-${i}`;
-                            return (
-                              <div key={i} className="flex justify-between text-sm border-b py-1">
-                                <span>{p.product_name}</span>
-                                <span>
-                                  {p.quantity} {p.unit}
-                                  {p.delivery_date && (
-                                    <Button
-                                      variant={p.is_exported ? "ghost" : "outline"}
-                                      size="icon"
-                                      className="ml-2 h-6 w-6 hover:bg-slate-100"
-                                      onClick={() => handleSendOrder(p, i)}
-                                      disabled={!!p.is_exported || (!!productKey && sendingOrders.has(productKey))}
-                                    >
-                                      {p.is_exported ? (
-                                        "✅"
-                                      ) : (productKey && sendingOrders.has(productKey)) ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        "📤"
-                                      )}
-                                    </Button>
-                                  )}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs italic">Geen regels gevonden.</p>
-                    )}
-                  </TabsContent>
+{selectedOrder.parsed_data?.products ? (
+  Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
+    ([date, products]) => (
+      <div key={date} className="mb-3">
+        <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
+        {products.map((p, i) => {
+          // Use id as the unique key for this specific product
+          const productKey = p.order_line_id;
+          
+          return (
+            <div key={i} className="flex justify-between text-sm border-b py-1">
+              <span>{p.name}</span>
+              <span>
+                {p.quantity} {p.unit}
+                {(() => {
+                  // Find matching order line to get delivery date from database
+                  const matchingOrderLine = orderLines.find(line => 
+                    line.id === p.order_line_id
+                  );
+                  const deliveryDate = matchingOrderLine?.delivery_date;
+                  
+                  return deliveryDate && (
+                    <Button 
+                      variant={p.is_exported ? "ghost" : "outline"} 
+                      size="icon"
+                      className="ml-2 h-6 w-6 hover:bg-slate-100"
+                      onClick={() => handleSendOrder(p, i)}
+                      disabled={!!p.is_exported || (!!productKey && sendingOrders.has(productKey))}
+                    >
+                      {p.is_exported ? (
+                        "✅"
+                      ) : (productKey && sendingOrders.has(productKey)) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "📤"
+                      )}
+                    </Button>
+                  );
+                })()}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    )
+  )
+
+) : (
+  <p className="text-xs italic">Geen regels gevonden.</p>
+)}
+</TabsContent>
 
                   <TabsContent value="parsed">
                     <Textarea
