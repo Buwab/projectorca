@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import logging
 from email_parser import run as run_email_parser
-from llm_parser import run as run_llm_parser
+from llm_parser import process_raw_emails as run_llm_parser
 from import_structured_orders import run as run_import_orders
 
 # Configure logging
