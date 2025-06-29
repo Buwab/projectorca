@@ -38,7 +38,7 @@ interface OrderLine {
   unit: string;
   delivery_date: string | null;
   is_exported?: boolean;
-  name?: string; // ← alias voor gebruik in UI
+  name?: string; // ← alias voor gebruik in UI s 
 }
 
 
