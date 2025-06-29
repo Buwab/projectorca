@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -233,12 +233,16 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   // Fetch order lines when page changes or orders change
   useEffect(() => {
     const fetchOrderLines = async () => {
-      if (paginatedOrders.length === 0) return;
+      // Calculate paginatedOrders inside the effect to avoid dependency issues
+      const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const currentPageOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
       
-      console.log('🔍 Fetching order lines for all orders on current page:', paginatedOrders.length);
+      if (currentPageOrders.length === 0) return;
+      
+      console.log('🔍 Fetching order lines for all orders on current page:', currentPageOrders.length);
       
       // Get all email IDs from the current page
-      const emailIds = paginatedOrders.map(order => order.id);
+      const emailIds = currentPageOrders.map(order => order.id);
       
       // Fetch all structured orders for these emails
       const { data: structuredOrders } = await supabase
@@ -274,7 +278,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     };
 
     fetchOrderLines();
-  }, [currentPage, orders.length]); // Only depend on page and total orders count
+  }, [currentPage, orders, ordersPerPage]); // Stable dependencies
 
   return (
     <div className="p-4">
