@@ -230,52 +230,51 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
-  // Fetch all order lines for the current page of orders
-  const fetchAllOrderLinesForCurrentPage = useCallback(async () => {
-    if (paginatedOrders.length === 0) return;
-    
-    console.log('🔍 Fetching order lines for all orders on current page:', paginatedOrders.length);
-    
-    // Get all email IDs from the current page
-    const emailIds = paginatedOrders.map(order => order.id);
-    
-    // Fetch all structured orders for these emails
-    const { data: structuredOrders } = await supabase
-      .from("orders_structured")
-      .select("id, email_id")
-      .in("email_id", emailIds);
-    
-    console.log('🔍 Structured orders found:', structuredOrders);
-    
-    if (!structuredOrders || structuredOrders.length === 0) {
-      setOrderLines([]);
-      return;
-    }
-    
-    // Get all order line IDs
-    const structuredOrderIds = structuredOrders.map(order => order.id);
-    
-    // Fetch all order lines for these structured orders
-    const { data: allLines } = await supabase
-      .from("order_lines")
-      .select("id, product_name, quantity, unit, delivery_date, is_exported, order_id")
-      .in("order_id", structuredOrderIds);
-    
-    console.log('🔍 All order lines fetched:', allLines);
-    
-    if (allLines) {
-      const enrichedLines = (allLines as OrderLine[]).map(line => ({
-        ...line,
-        name: line.product_name
-      }));
-      setOrderLines(enrichedLines);
-    }
-  }, [paginatedOrders]);
-
   // Fetch order lines when page changes or orders change
   useEffect(() => {
-    fetchAllOrderLinesForCurrentPage();
-  }, [paginatedOrders, fetchAllOrderLinesForCurrentPage]);
+    const fetchOrderLines = async () => {
+      if (paginatedOrders.length === 0) return;
+      
+      console.log('🔍 Fetching order lines for all orders on current page:', paginatedOrders.length);
+      
+      // Get all email IDs from the current page
+      const emailIds = paginatedOrders.map(order => order.id);
+      
+      // Fetch all structured orders for these emails
+      const { data: structuredOrders } = await supabase
+        .from("orders_structured")
+        .select("id, email_id")
+        .in("email_id", emailIds);
+      
+      console.log('🔍 Structured orders found:', structuredOrders);
+      
+      if (!structuredOrders || structuredOrders.length === 0) {
+        setOrderLines([]);
+        return;
+      }
+      
+      // Get all order line IDs
+      const structuredOrderIds = structuredOrders.map(order => order.id);
+      
+      // Fetch all order lines for these structured orders
+      const { data: allLines } = await supabase
+        .from("order_lines")
+        .select("id, product_name, quantity, unit, delivery_date, is_exported, order_id")
+        .in("order_id", structuredOrderIds);
+      
+      console.log('🔍 All order lines fetched:', allLines);
+      
+      if (allLines) {
+        const enrichedLines = (allLines as OrderLine[]).map(line => ({
+          ...line,
+          name: line.product_name
+        }));
+        setOrderLines(enrichedLines);
+      }
+    };
+
+    fetchOrderLines();
+  }, [currentPage, orders.length]); // Only depend on page and total orders count
 
   return (
     <div className="p-4">
