@@ -1,3 +1,5 @@
+# llm_parser.py
+
 import os
 import json
 from dotenv import load_dotenv
@@ -13,30 +15,35 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 today = datetime.today().strftime("%Y-%m-%d")
 
 
-def extract_latest_message(email_body):
+def extract_latest_message(email_body: str) -> str:
     for delimiter in ["\nOn ", "\r\nOn ", "\n> On "]:
         if delimiter in email_body:
             return email_body.split(delimiter)[0].strip()
     return email_body.strip()
 
 
-def extract_order_from_email(email_body):
+def clean_json_output(raw_text: str) -> str:
+    if raw_text.startswith("```"):
+        lines = raw_text.strip().splitlines()
+        if lines[0].startswith("```json"):
+            lines = lines[1:]
+        return "\n".join(line for line in lines if not line.startswith("```"))
+    return raw_text
+
+
+def extract_order_from_email(email_body: str) -> dict:
     prompt = f"""
 Je bent een slimme order-assistent. Haal de orderinformatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
-🎯 Belangrijke instructies:
-- Zet alle datums in formaat "YYYY-MM-DD" (ISO 8601).
-- Reken relatieve termen zoals "morgen", "maandag", "dinsdag" enz. om naar echte datums, gerekend vanaf vandaag: {today}.
-- **Als er meerdere datums genoemd worden (zoals 'maandag', 'dinsdag', etc.), geef dan elke regel met producten een eigen `delivery_date`.**
-- Laat het algemene veld `delivery_date` leeg (null) als je productregels met eigen datums gebruikt.
-- Gebruik alleen JSON – geen tekst, uitleg of markdown.
+🎯 Instructies:
+- Gebruik ISO-datums: YYYY-MM-DD.
+- Zet woorden als "morgen", "maandag" etc. om naar datums vanaf vandaag ({today}).
+- Laat `delivery_date` leeg als er regelspecifieke datums zijn.
 
 E-mail:
-\"\"\"
-{email_body}
-\"\"\"
+\"\"\"{email_body}\"\"\"
 
-Geef als output exact dit JSON-format:
+JSON-format:
 
 {{
   "order_number": null,
@@ -56,328 +63,179 @@ Geef als output exact dit JSON-format:
 """
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "Je bent een behulpzame order-parser."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0
+        messages=[{"role": "system", "content": "Je bent een order-parser."}, {"role": "user", "content": prompt}],
+        temperature=0,
     )
-    return response.choices[0].message.content
+    return json.loads(clean_json_output(response.choices[0].message.content))
 
 
-
-def is_update_like_email(email_body):
-    prompt = f"""
-Is deze e-mail waarschijnlijk een toevoeging of wijziging op een eerdere bestelling?
+def is_update_like_email(email_body: str) -> dict:
+    prompt = f"""Is deze e-mail waarschijnlijk een wijziging op een eerdere bestelling?
 
 \"\"\"{email_body}\"\"\"
 
-Beantwoord met JSON:
-{{
-  "is_update_intent": true/false,
-  "reason": "korte uitleg"
-}}
-"""
+Antwoord als JSON:
+{{"is_update_intent": true/false, "reason": "..."}}"""
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Je beoordeelt of een e-mail een update is."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0
+            messages=[{"role": "system", "content": "Je beoordeelt of iets een update is."}, {"role": "user", "content": prompt}],
+            temperature=0,
         )
-        raw = response.choices[0].message.content.strip()
-        if raw.startswith("```"):
-            lines = raw.strip("`").splitlines()
-            if lines and lines[0].startswith("json"):
-                lines = lines[1:]
-            raw = "\n".join(lines).strip()
+        raw = clean_json_output(response.choices[0].message.content)
         return json.loads(raw)
     except Exception as e:
-        print("❌ GPT intent-analyse mislukt:", e)
+        print("⚠️ Intent-analyse mislukt:", e)
         return {"is_update_intent": False, "reason": "fallback"}
 
 
-def match_previous_order(sender_email, delivery_date, products):
+def find_previous_order(sender: str, delivery_date: str, products: list) -> str | None:
     try:
-        resp = supabase.table("orders_structured") \
-            .select("id, delivery_date, created_at, products") \
-            .eq("sender", sender_email) \
-            .order("created_at", desc=True).limit(10).execute()
+        response = supabase.table("orders_structured").select("*").eq("sender", sender).order("created_at", desc=True).limit(10).execute()
+        candidates = response.data or []
+        best_score, best_id = 0.0, None
 
-        previous_orders = resp.data or []
-        current_date = None
-        if delivery_date:
-            try:
-                current_date = datetime.strptime(delivery_date, "%Y-%m-%d")
-            except:
-                pass
+        for order in candidates:
+            score = 0.0
+            prev_products = order.get("products") or []
+            prev_names = {p["name"].lower() for p in prev_products if p.get("name")}
+            curr_names = {p["name"].lower() for p in products if p.get("name")}
 
-        best_match = None
-        best_score = 0.0
+            if prev_names & curr_names:
+                score += 0.2
+            if delivery_date and order.get("delivery_date") == delivery_date:
+                score += 0.4
+            elif not delivery_date:
+                score += 0.1
 
-        for order in previous_orders:
-            try:
-                created_at = dateparser.parse(order["created_at"]).replace(tzinfo=timezone.utc)
-                if (datetime.now(timezone.utc) - created_at) > timedelta(hours=48):
-                    continue
+            if score > best_score:
+                best_score = score
+                best_id = order["id"]
 
-                score = 0.0
-                log = []
-
-                # Leverdatum
-                if current_date and order["delivery_date"]:
-                    try:
-                        prev_delivery = datetime.strptime(order["delivery_date"], "%Y-%m-%d")
-                        delta = abs((current_date - prev_delivery).days)
-                        if delta == 0:
-                            score += 0.4
-                            log.append("📅 Leverdatum = exact → +0.4")
-                        elif delta == 1:
-                            score += 0.2
-                            log.append("📅 Leverdatum ±1 dag → +0.2")
-                        else:
-                            log.append("📅 Leverdatum >1 dag verschil → +0")
-                    except:
-                        log.append("📅 Fout in leverdatum → +0")
-                else:
-                    score += 0.1
-                    log.append("📅 Geen leverdatum → +0.1")
-
-                # Productanalyse: overlap is goed, maar geen harde vereiste
-                prev_products = order.get("products") or []
-                if prev_products and products:
-                    prev_names = {p["name"].lower() for p in prev_products if p.get("name")}
-                    curr_names = {p["name"].lower() for p in products if p.get("name")}
-                    name_overlap = prev_names.intersection(curr_names)
-                    if name_overlap:
-                        score += 0.2
-                        log.append(f"🛒 Enige overlap in productnamen: {name_overlap} → +0.2")
-                    else:
-                        log.append("🛒 Geen overlap — maar mogelijk wel toevoeging")
-
-                print(f"\n🧮 Evaluatie order {order['id']}")
-                for l in log:
-                    print("   ", l)
-                print(f"   ➕ Totale score: {round(score, 2)}")
-
-                if score > best_score:
-                    best_score = score
-                    best_match = order["id"]
-
-            except Exception as e:
-                print("⚠️ Fout bij eerdere order:", e)
-
-        if best_score >= 0.4:
-            return best_match, round(best_score, 2)
-
+        return best_id if best_score >= 0.4 else None
     except Exception as e:
-        print("❌ Match-fout:", e)
-
-    return None, 0.0
-
+        print("⚠️ Match-fout:", e)
+        return None
 
 
-def find_previous_order_in_thread(in_reply_to, message_references):
-    candidates = []
-    if in_reply_to:
-        candidates.append(in_reply_to.strip())
-    if message_references:
-        refs = message_references.split()
-        candidates.extend([r.strip() for r in refs])
+def thread_fallback(in_reply_to: str, message_refs: str) -> str | None:
+    candidates = [in_reply_to] if in_reply_to else []
+    candidates += message_refs.split() if message_refs else []
 
     for msg_id in candidates:
         try:
-            email_resp = supabase.table("orders").select("id").eq("message_id", msg_id).limit(1).execute()
+            email_resp = supabase.table("orders").select("id").eq("message_id", msg_id.strip()).limit(1).execute()
             if email_resp.data:
                 origin_email_id = email_resp.data[0]["id"]
-                structured_resp = supabase.table("orders_structured").select("id") \
-                    .eq("email_id", origin_email_id).limit(1).execute()
+                structured_resp = supabase.table("orders_structured").select("id").eq("email_id", origin_email_id).limit(1).execute()
                 if structured_resp.data:
                     return structured_resp.data[0]["id"]
         except Exception as e:
             print("⚠️ Thread fallback fout:", e)
-
     return None
 
 
-def match_order_lines_to_previous(parent_order_id, new_products):
-    try:
-        if not parent_order_id:
-            # Geen parent, dus alles is nieuw
-            return [
-                {
-                    **p,
-                    "change_type": "add",
-                    "modifies_line_id": None,
-                    "line_group_id": None  # Die vullen we in het importscript
-                }
-                for p in new_products
-            ]
+def match_order_lines(parent_order_id: str | None, products: list) -> list:
+    matched = []
+    used_ids = set()
+    previous_lines = []
 
-        # Haal vorige orderregels op
-        response = supabase.table("order_lines") \
-            .select("id, product_name, quantity, unit, delivery_date, line_group_id") \
-            .eq("order_id", parent_order_id).execute()
+    if parent_order_id:
+        resp = supabase.table("order_lines").select("*").eq("order_id", parent_order_id).execute()
+        previous_lines = resp.data or []
 
-        previous_lines = response.data or []
-        matched_lines = []
-        used_prev_ids = set()
-
-        for product in new_products:
-            match_found = False
-            for prev in previous_lines:
-                if prev["id"] in used_prev_ids:
-                    continue
-                if (
-                    product.get("name") == prev.get("product_name") and
-                    product.get("unit") == prev.get("unit") and
-                    (product.get("delivery_date") or "") == (prev.get("delivery_date") or "")
-                ):
-                    # Gelijke regel gevonden, vergelijk hoeveelheid
-                    prev_qty = float(prev.get("quantity", 0) or 0)
-                    new_qty = float(product.get("quantity", 0) or 0)
-
-                    if new_qty == prev_qty:
-                        # Zelfde regel, waarschijnlijk dubbele bevestiging → negeer
-                        continue
-
-                    matched_lines.append({
-                        **product,
-                        "change_type": "update",
-                        "modifies_line_id": prev["id"],
-                        "line_group_id": prev.get("line_group_id")
-                    })
-                    used_prev_ids.add(prev["id"])
-                    match_found = True
-                    break
-
-            if not match_found:
-                matched_lines.append({
-                    **product,
-                    "change_type": "add",
-                    "modifies_line_id": None,
-                    "line_group_id": None
-                })
-
-        # Bekijk of er regels in previous_lines staan die nergens meer in terugkomen → remove
-        new_keys = set(
-            (
-                p.get("name"),
-                p.get("unit"),
-                p.get("delivery_date")
-            ) for p in new_products
-        )
-
+    for product in products:
+        matched_prev = None
         for prev in previous_lines:
-            key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
-            if key not in new_keys:
-                matched_lines.append({
-                    "product_name": prev.get("product_name"),
-                    "quantity": 0,
-                    "unit": prev.get("unit"),
-                    "delivery_date": prev.get("delivery_date"),
-                    "change_type": "remove",
-                    "modifies_line_id": prev["id"],
-                    "line_group_id": prev.get("line_group_id")
-                })
+            if prev["id"] in used_ids:
+                continue
+            if (
+                product.get("name") == prev.get("product_name")
+                and product.get("unit") == prev.get("unit")
+                and (product.get("delivery_date") or "") == (prev.get("delivery_date") or "")
+            ):
+                matched_prev = prev
+                break
 
-        return matched_lines
-
-    except Exception as e:
-        print("❌ Fout bij line-matching:", e)
-        # Fallback: alles als toevoeging
-        return [
-            {
-                **p,
+        if matched_prev:
+            matched.append({
+                **product,
+                "change_type": "update",
+                "modifies_line_id": matched_prev["id"],
+                "line_group_id": matched_prev.get("line_group_id")
+            })
+            used_ids.add(matched_prev["id"])
+        else:
+            # Fallback delivery_date van gelijke productregel in vorige order
+            fallback_date = next(
+                (prev.get("delivery_date") for prev in previous_lines if product.get("name") == prev.get("product_name")),
+                product.get("delivery_date")
+            )
+            matched.append({
+                **product,
                 "change_type": "add",
                 "modifies_line_id": None,
-                "line_group_id": None
-            }
-            for p in new_products
-        ]
+                "line_group_id": None,
+                "delivery_date": fallback_date
+            })
 
+    if previous_lines:
+        existing_keys = {(p["name"], p["unit"], p.get("delivery_date")) for p in products}
+        for prev in previous_lines:
+            key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
+            if key not in existing_keys:
+                matched.append({
+                    "product_name": prev["product_name"],
+                    "quantity": 0,
+                    "unit": prev["unit"],
+                    "delivery_date": prev["delivery_date"],
+                    "change_type": "remove",
+                    "modifies_line_id": prev["id"],
+                    "line_group_id": prev["line_group_id"]
+                })
 
-def clean_json_output(raw_text):
-    if raw_text.startswith("```"):
-        raw_text = raw_text.strip().strip("`")
-        lines = raw_text.splitlines()
-        if lines and lines[0].startswith("json"):
-            lines = lines[1:]
-        return "\n".join(lines)
-    return raw_text
+    return matched
 
 
 def process_raw_emails():
     response = supabase.table("orders").select("*").eq("llm_processed", False).execute()
-    emails = response.data
-    print(f"🔍 Gevonden ongeparste e-mails: {len(emails)}")
+    emails = response.data or []
+
+    print(f"🔍 {len(emails)} ongeparste e-mails gevonden")
 
     for mail in emails:
         try:
-            email_id = mail["id"]
-            sender = mail.get("sender")
-            subject = mail.get("subject", "")
-            body = mail.get("email_body", "")
-            in_reply_to = mail.get("in_reply_to")
-            message_refs = mail.get("message_references")
+            short = extract_latest_message(mail["email_body"])
+            parsed = extract_order_from_email(short)
+            delivery_date = parsed.get("delivery_date")
+            products = parsed.get("products", [])
+            parsed["order_date"] = today
 
-            print(f"\n🧠 Parsing mail: {subject}")
-            print(f"✉️ Afzender: {sender}")
+            intent = is_update_like_email(mail["email_body"])
+            print(f"\n🧠 Parsing '{mail['subject']}' — Intent: {'✅' if intent['is_update_intent'] else '❌'}")
 
-            short_body = extract_latest_message(body)
-            raw_output = extract_order_from_email(short_body)
-            parsed_json = json.loads(clean_json_output(raw_output))
-
-            delivery_date = parsed_json.get("delivery_date")
-            products = parsed_json.get("products", [])
             parent_order_id = None
-            update_probability = 0.0
-
-            print(f"🔁 RE in subject? {'✅' if subject.lower().startswith('re:') else '❌'}")
-
-            intent = is_update_like_email(body)
-            print(f"✍️  Tekst lijkt update? {'✅' if intent['is_update_intent'] else '❌'} — {intent['reason']}")
             if intent["is_update_intent"]:
-                parent_order_id, update_probability = match_previous_order(sender, delivery_date, products)
+                parent_order_id = find_previous_order(mail["sender"], delivery_date, products) or \
+                                  thread_fallback(mail.get("in_reply_to"), mail.get("message_references"))
 
-                if not parent_order_id:
-                    print("🔗 Geen directe match — probeer thread fallback")
-                    parent_order_id = find_previous_order_in_thread(in_reply_to, message_refs)
-                    if parent_order_id:
-                        update_probability = 0.95
-                        print(f"🔁 Thread fallback match: {parent_order_id}")
-                    else:
-                        print("🔗 Geen fallback match gevonden")
-            else:
-                print("⛔ Geen update intent gedetecteerd")
-
-                
-
-            parsed_json["parent_order_id"] = parent_order_id
-            parsed_json["update_probability"] = update_probability
-            parsed_json["update_reason"] = intent["reason"]
+            matched = match_order_lines(parent_order_id, products)
+            parsed["parent_order_id"] = parent_order_id
+            parsed["update_reason"] = intent["reason"]
+            parsed["matched_lines"] = matched
 
             supabase.table("orders").update({
-                "parsed_data": parsed_json,
+                "parsed_data": parsed,
                 "llm_processed": True
-            }).eq("id", email_id).execute()
+            }).eq("id", mail["id"]).execute()
 
             print(f"✅ Order verwerkt als {'update' if parent_order_id else 'nieuw'}")
+            for l in matched:
+                print(f"🔸 {l['change_type'].upper():<6} {l.get('product_name') or l.get('name')} → {l['quantity']} stuks @ {l.get('delivery_date')}")
 
         except Exception as e:
-            print(f"❌ Fout bij mail '{mail.get('subject', '')}': {e}")
-
-        if parent_order_id:
-            matched_lines = match_order_lines_to_previous(parent_order_id, products)
-            parsed_json["matched_lines"] = matched_lines
-
-            print("\n🔍 Gecodeerde orderregels:")
-            for line in matched_lines:
-                print(f"🔹 {line['change_type'].upper():<6} → {line.get('name') or line.get('product_name')} "
-                      f"(qty: {line['quantity']}, date: {line['delivery_date']}) "
-                      f"{'↳ update van ' + line['modifies_line_id'][:8] if line['modifies_line_id'] else ''}")
+            print("❌ Fout bij mail:", e)
 
 
 if __name__ == "__main__":
