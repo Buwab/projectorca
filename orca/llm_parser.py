@@ -202,6 +202,103 @@ def find_previous_order_in_thread(in_reply_to, message_references):
     return None
 
 
+def match_order_lines_to_previous(parent_order_id, new_products):
+    try:
+        if not parent_order_id:
+            # Geen parent, dus alles is nieuw
+            return [
+                {
+                    **p,
+                    "change_type": "add",
+                    "modifies_line_id": None,
+                    "line_group_id": None  # Die vullen we in het importscript
+                }
+                for p in new_products
+            ]
+
+        # Haal vorige orderregels op
+        response = supabase.table("order_lines") \
+            .select("id, product_name, quantity, unit, delivery_date, line_group_id") \
+            .eq("order_id", parent_order_id).execute()
+
+        previous_lines = response.data or []
+        matched_lines = []
+        used_prev_ids = set()
+
+        for product in new_products:
+            match_found = False
+            for prev in previous_lines:
+                if prev["id"] in used_prev_ids:
+                    continue
+                if (
+                    product.get("name") == prev.get("product_name") and
+                    product.get("unit") == prev.get("unit") and
+                    (product.get("delivery_date") or "") == (prev.get("delivery_date") or "")
+                ):
+                    # Gelijke regel gevonden, vergelijk hoeveelheid
+                    prev_qty = float(prev.get("quantity", 0) or 0)
+                    new_qty = float(product.get("quantity", 0) or 0)
+
+                    if new_qty == prev_qty:
+                        # Zelfde regel, waarschijnlijk dubbele bevestiging → negeer
+                        continue
+
+                    matched_lines.append({
+                        **product,
+                        "change_type": "update",
+                        "modifies_line_id": prev["id"],
+                        "line_group_id": prev.get("line_group_id")
+                    })
+                    used_prev_ids.add(prev["id"])
+                    match_found = True
+                    break
+
+            if not match_found:
+                matched_lines.append({
+                    **product,
+                    "change_type": "add",
+                    "modifies_line_id": None,
+                    "line_group_id": None
+                })
+
+        # Bekijk of er regels in previous_lines staan die nergens meer in terugkomen → remove
+        new_keys = set(
+            (
+                p.get("name"),
+                p.get("unit"),
+                p.get("delivery_date")
+            ) for p in new_products
+        )
+
+        for prev in previous_lines:
+            key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
+            if key not in new_keys:
+                matched_lines.append({
+                    "product_name": prev.get("product_name"),
+                    "quantity": 0,
+                    "unit": prev.get("unit"),
+                    "delivery_date": prev.get("delivery_date"),
+                    "change_type": "remove",
+                    "modifies_line_id": prev["id"],
+                    "line_group_id": prev.get("line_group_id")
+                })
+
+        return matched_lines
+
+    except Exception as e:
+        print("❌ Fout bij line-matching:", e)
+        # Fallback: alles als toevoeging
+        return [
+            {
+                **p,
+                "change_type": "add",
+                "modifies_line_id": None,
+                "line_group_id": None
+            }
+            for p in new_products
+        ]
+
+
 def clean_json_output(raw_text):
     if raw_text.startswith("```"):
         raw_text = raw_text.strip().strip("`")
@@ -256,6 +353,8 @@ def process_raw_emails():
             else:
                 print("⛔ Geen update intent gedetecteerd")
 
+                
+
             parsed_json["parent_order_id"] = parent_order_id
             parsed_json["update_probability"] = update_probability
             parsed_json["update_reason"] = intent["reason"]
@@ -269,6 +368,16 @@ def process_raw_emails():
 
         except Exception as e:
             print(f"❌ Fout bij mail '{mail.get('subject', '')}': {e}")
+
+        if parent_order_id:
+            matched_lines = match_order_lines_to_previous(parent_order_id, products)
+            parsed_json["matched_lines"] = matched_lines
+
+            print("\n🔍 Gecodeerde orderregels:")
+            for line in matched_lines:
+                print(f"🔹 {line['change_type'].upper():<6} → {line.get('name') or line.get('product_name')} "
+                      f"(qty: {line['quantity']}, date: {line['delivery_date']}) "
+                      f"{'↳ update van ' + line['modifies_line_id'][:8] if line['modifies_line_id'] else ''}")
 
 
 if __name__ == "__main__":
