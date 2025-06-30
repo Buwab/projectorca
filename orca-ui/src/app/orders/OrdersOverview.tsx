@@ -183,7 +183,6 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   };
 
   const totalPages = Math.ceil(orders.length / ordersPerPage);
-  const currentOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
