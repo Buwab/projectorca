@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
-import React from "react";
 import { Loader2 } from "lucide-react";
 
 interface Product {
@@ -42,203 +51,127 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
 
-
-  // Sync with parent component when initialOrders changes
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
 
-  // Keep selectedOrder synchronized with the orders array
   useEffect(() => {
     if (selectedOrder) {
-      const updatedSelectedOrder = orders.find(order => order.id === selectedOrder.id);
-      if (updatedSelectedOrder && updatedSelectedOrder !== selectedOrder) {
-        setSelectedOrder(updatedSelectedOrder);
+      const updated = orders.find((o) => o.id === selectedOrder.id);
+      if (updated && updated !== selectedOrder) {
+        setSelectedOrder(updated);
       }
     }
   }, [orders, selectedOrder]);
+
+  const fetchOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      if (data) setOrders(data as Order[]);
+    } catch (err) {
+      console.error("❌ Error fetching orders:", err);
+    }
+  };
+
+  const handleProcessAll = async () => {
+    setProcessing(true);
+    setProcessResult(null);
+
+    try {
+      const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || json.status === "error") {
+        setProcessResult(`❌ Fout: ${json.message || res.status}`);
+        return;
+      }
+      setProcessResult(`📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`);
+      await fetchOrders();
+    } catch (err) {
+      console.error("❌ Fout bij verwerken:", err);
+      setProcessResult("❌ Fout bij verbinden met backend");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleSendOrder = async (product: Product, index: number) => {
+    if (!product.delivery_date || !product.order_line_id) return;
+    const key = product.order_line_id;
+    setSendingOrders((prev) => new Set(prev).add(key));
+
+    try {
+      const res = await fetch("https://projectorca.onrender.com/send-to-trello", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: selectedOrder?.id, product, product_index: index }),
+      });
+      const result = await res.json();
+      if (!res.ok || result.status !== "success") throw new Error(result.message);
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === selectedOrder?.id
+            ? {
+                ...order,
+                parsed_data: {
+                  ...order.parsed_data,
+                  products: order.parsed_data.products?.map((p) =>
+                    p.order_line_id === key ? { ...p, is_exported: true } : p
+                  ),
+                },
+              }
+            : order
+        )
+      );
+    } catch (err) {
+      alert("❌ Versturen mislukt: " + (err instanceof Error ? err.message : "Onbekende fout"));
+    } finally {
+      setSendingOrders((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder) return;
     setSubmitting(true);
     try {
-      const parsedCorrection = feedbackText ? JSON.parse(feedbackText) : null;
+      const corrected = feedbackText ? JSON.parse(feedbackText) : null;
       await supabase.from("order_feedback").insert({
         order_id: selectedOrder.id,
         original_data: selectedOrder.parsed_data,
-        corrected_data: parsedCorrection,
+        corrected_data: corrected,
         feedback_text: feedbackText,
       });
-      alert("Feedback opgeslagen ✔");
+      alert("✔ Feedback opgeslagen");
       setFeedbackText("");
     } catch {
-      alert("❌ Feedback opslaan mislukt. Is je JSON wel geldig?");
+      alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
     } finally {
       setSubmitting(false);
     }
   };
 
-  type ProcessAllResponse = {
-    status: "success" | "error";
-    message?: string;
-    email?: { emails_found: number };
-    llm?: { parsed: number };
-    import?: {
-      orders_imported: number;
-      new_orders?: Order[];
-    };
-  };
-  
-  const handleProcessAll = async () => {
-    setProcessing(true);
-    setProcessResult(null);
-  
-    try {
-      const res = await fetch("https://projectorca.onrender.com/process-all", {
-        method: "POST",
-      });
-  
-      let json: ProcessAllResponse | null = null;
-  
-      try {
-        json = await res.json() as ProcessAllResponse;
-      } catch {
-        const text = await res.text();
-        console.warn("⚠️ Backend gaf geen JSON, maar wel tekst:", text);
-        setProcessResult(`⚠️ Backend gaf geen JSON terug. Response: ${text}`);
-        return;
-      }
-  
-      if (!res.ok || json.status === "error") {
-        const msg = json.message || `Onbekende fout (${res.status})`;
-        setProcessResult(`❌ Fout: ${msg}`);
-        return;
-      }
-  
-      // Toon resultaat
-      setProcessResult(
-        `📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`
-      );
-  
-      // Voeg nieuwe orders toe als ze beschikbaar zijn
-      const newOrders = json.import?.new_orders as Order[] | undefined;
-  
-      if (newOrders?.length) {
-        setOrders(prev => [...newOrders, ...prev]);
-        setNewlyImportedOrderIds(new Set(newOrders.map(o => o.id)));
-      }
-  
-    } catch (e: unknown) {
-      console.error("❌ Verwerken mislukt:", e);
-      const message = e instanceof Error ? e.message : "Onbekende fout";
-      setProcessResult("❌ Fout bij verbinden met backend: " + message);
-    } finally {
-      setProcessing(false);
-    }
-  };
-  
-  
-
-  const handleSendOrder = async (product: Product, productIndex: number) => {
-    if (!product.delivery_date) return;
-    
-    // Phase 2: Add validation to ensure order_line_id exists
-    if (!product.order_line_id) {
-      alert("Error: This product doesn't have an order_line_id. Please refresh the page and try again.");
-      console.error("Missing order_line_id for product:", product);
-      return;
-    }
-    
-    // Use order_line_id as the unique key for tracking sending state
-    const productKey = product.order_line_id;
-    setSendingOrders(prev => new Set(prev).add(productKey));
-    
-    try {
-      console.log('🚀 ATTEMPTING TO SEND ORDER');
-      console.log('Selected Order ID:', selectedOrder?.id);
-      console.log('Product being sent:', product);
-      console.log('Product order_line_id:', product.order_line_id);
-      console.log('Product index:', productIndex);
-
-      const response = await fetch("https://projectorca.onrender.com/send-to-trello", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          order_id: selectedOrder?.id,
-          product,
-          product_index: productIndex
-        }),
-      });
-
-      console.log('Response status:', response.status);
-      const result = await response.json();
-      console.log('Response data:', result);
-
-      if (!response.ok) {
-        throw new Error(`Failed to send order: ${response.statusText}. Details: ${JSON.stringify(result)}`);
-      }
-
-      if (result.status === "success") {
-        // Immediate UI update: Update orders state (selectedOrder will be synced by useEffect)
-        setOrders(prevOrders => {
-          return prevOrders.map(order => {
-            if (order.id !== selectedOrder?.id || !order.parsed_data?.products) return order;
-            
-            return {
-              ...order,
-              parsed_data: {
-                ...order.parsed_data,
-                products: order.parsed_data.products.map((p) => {
-                  // Update the specific product that was just sent using its order_line_id
-                  if (p.order_line_id && p.order_line_id === product.order_line_id) {
-                    return {
-                      ...p,
-                      is_exported: true
-                    };
-                  }
-                  return p;
-                })
-              }
-            };
-          });
-        });
-        
-        console.log('✅ Order sent successfully and UI updated');
-      } else {
-        throw new Error(result.message || "Failed to send order to Trello");
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("Error sending order:", {
-        error,
-        message: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      alert("Failed to send order to Trello. Please try again. Error: " + errorMessage);
-    } finally {
-      setSendingOrders(prev => {
-        const next = new Set(prev);
-        next.delete(productKey);
-        return next;
-      });
-    }
-  };
-
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
-    products.forEach((p) => {
+    for (const p of products) {
       const date = p.delivery_date || "Onbekende datum";
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(p);
-
-    });
+    }
     return grouped;
   };
 
   const totalPages = Math.ceil(orders.length / ordersPerPage);
+  const currentOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+
   const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 

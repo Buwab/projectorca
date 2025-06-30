@@ -1,3 +1,4 @@
+# email_parser.py
 from imapclient import IMAPClient
 import email
 from bs4 import BeautifulSoup
@@ -5,7 +6,6 @@ from dotenv import load_dotenv
 import os
 from supabase_client import store_email
 
-# 🔧 Load .env settings
 load_dotenv()
 
 HOST = os.getenv("IMAP_SERVER")
@@ -32,7 +32,7 @@ def process_emails():
         server.select_folder("INBOX")
 
         messages = server.search(["UNSEEN"])
-        print(f"📬 Gevonden ongelezen mails: {len(messages)}")
+        print(f"✉️ Gevonden ongelezen mails: {len(messages)}")
 
         for uid, msg_data in server.fetch(messages, ["RFC822"]).items():
             raw_email = msg_data[b"RFC822"]
@@ -47,8 +47,7 @@ def process_emails():
 
             server.add_flags(uid, [b"\\Seen"])
 
-def run():
-    process_emails()
+    return len(messages)
 
-if __name__ == "__main__":
-    run()
+def run():
+    return {"emails_found": process_emails()}

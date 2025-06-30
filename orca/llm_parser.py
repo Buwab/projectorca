@@ -80,6 +80,7 @@ def process_raw_emails():
     emails = response.data
 
     print(f"🔍 Gevonden ongeparste e-mails: {len(emails)}")
+    processed_count = 0
 
     for mail in emails:
         try:
@@ -101,12 +102,17 @@ def process_raw_emails():
             }).eq("id", email_id).execute()
 
             print(f"✅ Order verwerkt voor mail: {mail['subject']}")
+            processed_count += 1
 
         except Exception as e:
             print(f"❌ Fout bij verwerken van mail '{mail.get('subject', '')}': {e}")
 
+    return processed_count
+
+
 def run():
-    process_raw_emails()
+    return {"parsed": process_raw_emails()}
+
 
 if __name__ == "__main__":
     run()
