@@ -84,7 +84,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     message?: string;
     email?: { emails_found: number };
     llm?: { parsed: number };
-    import?: { orders_imported: number };
+    import?: {
+      orders_imported: number;
+      new_orders?: Order[];
+    };
   };
   
   const handleProcessAll = async () => {
@@ -119,7 +122,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       );
   
       // Voeg nieuwe orders toe als ze beschikbaar zijn
-      const newOrders = (json.import as any)?.new_orders as Order[] | undefined;
+      const newOrders = json.import?.new_orders as Order[] | undefined;
   
       if (newOrders?.length) {
         setOrders(prev => [...newOrders, ...prev]);
