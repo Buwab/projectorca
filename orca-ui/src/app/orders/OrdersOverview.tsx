@@ -80,16 +80,18 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
+  
     try {
       const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
   
-      let json = null;
+      let json: any = null;
       try {
         json = await res.json();
-      } catch (e) {
+      } catch {
         const text = await res.text();
-        console.warn("⚠️ Kon geen JSON parsen. Response:", text);
-        throw new Error("Backend gaf geen geldige JSON terug");
+        console.warn("⚠️ Backend gaf geen JSON, maar wel tekst:", text);
+        setProcessResult(`⚠️ Backend gaf geen JSON terug. Response: ${text}`);
+        return; // Stop hier
       }
   
       if (!res.ok || json?.status === "error") {
@@ -100,9 +102,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         window.location.reload();
       }
   
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("❌ Verwerken mislukt:", e);
-      setProcessResult("❌ Fout bij verbinden met backend: " + e.message);
+      const message = e instanceof Error ? e.message : "Onbekende fout";
+      setProcessResult("❌ Fout bij verbinden met backend: " + message);
     } finally {
       setProcessing(false);
     }
