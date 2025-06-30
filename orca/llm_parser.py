@@ -24,7 +24,9 @@ def extract_order_from_email(email_body):
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
+- measuring unitis komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
+- de order_date is de verzenddatum van de email, msg_data in the email_parser.py
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
 
@@ -39,13 +41,13 @@ Antwoord in exact dit JSON-format:
   "order_number": null,
   "customer_name": "...",
   "order_date": "YYYY-MM-DD",
-  "delivery_date": "YYYY-MM-DD",
   "special_notes": "...",
   "products": [
     {{
       "name": "...",
       "quantity": ...,
-      "unit": "..."
+      "unit": "...",
+      "delivery_date": "YYYY-MM-DD",
     }}
   ]
 }}
@@ -78,6 +80,7 @@ def process_raw_emails():
     emails = response.data
 
     print(f"🔍 Gevonden ongeparste e-mails: {len(emails)}")
+    processed_count = 0
 
     for mail in emails:
         try:
@@ -99,12 +102,17 @@ def process_raw_emails():
             }).eq("id", email_id).execute()
 
             print(f"✅ Order verwerkt voor mail: {mail['subject']}")
+            processed_count += 1
 
         except Exception as e:
             print(f"❌ Fout bij verwerken van mail '{mail.get('subject', '')}': {e}")
 
+    return processed_count
+
+
 def run():
-    process_raw_emails()
+    return {"parsed": process_raw_emails()}
+
 
 if __name__ == "__main__":
     run()

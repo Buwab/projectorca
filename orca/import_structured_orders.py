@@ -21,6 +21,9 @@ def import_structured_orders():
     orders = response.data
     print(f"📥 Orders klaar voor import: {len(orders)}")
 
+    imported = 0
+    new_orders = []
+
     for order in orders:
         try:
             email_id = order["id"]
@@ -36,7 +39,6 @@ def import_structured_orders():
                 "order_number": parsed.get("order_number"),
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
-                "delivery_date": parsed.get("delivery_date"),
                 "special_notes": parsed.get("special_notes"),
             }
 
@@ -52,19 +54,36 @@ def import_structured_orders():
                     "order_id": structured_id,
                     "product_name": product.get("name"),
                     "quantity": product.get("quantity"),
+                    "delivery_date": product.get("delivery_date"),
                     "unit": product.get("unit"),
-                    "delivery_date": product.get("delivery_date") or parsed.get("delivery_date")
                 }
                 supabase.table("order_lines").insert(line_data).execute()
 
             # ⬇️ Markeer originele mail als verwerkt
             supabase.table("orders").update({"structured_imported": True}).eq("id", email_id).execute()
 
+            # ⬆️ Voeg toe aan resultaat
+            imported += 1
+            new_orders.append({
+                "id": email_id,
+                "subject": order["subject"],
+                "customer_name": parsed.get("customer_name"),
+                "order_date": parsed.get("order_date"),
+            })
+
         except Exception as e:
-            print(f"❌ Fout bij importeren van order '{order['subject']}': {e}")
+            print(f"❌ Fout bij importeren van order '{order.get('subject', '')}': {e}")
+
+    return imported, new_orders
+
 
 def run():
-    import_structured_orders()
+    imported, new_orders = import_structured_orders()
+    return {
+        "orders_imported": imported,
+        "new_orders": new_orders
+    }
+
 
 if __name__ == "__main__":
     run()
