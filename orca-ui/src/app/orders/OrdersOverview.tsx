@@ -64,6 +64,16 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   }, [orders, selectedOrder]);
 
+  useEffect(() => {
+    if (newlyImportedOrderIds.size > 0) {
+      const timeout = setTimeout(() => {
+        setNewlyImportedOrderIds(new Set());
+      }, 10000); // 10 seconden
+  
+      return () => clearTimeout(timeout);
+    }
+  }, [newlyImportedOrderIds]);
+
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
@@ -85,7 +95,7 @@ const newOrders: { id: string }[] = json.import?.new_orders ?? [];
 
 if (newOrders.length > 0) {
   const { data: updatedOrders, error } = await supabase
-    .from("emails")
+    .from("orders")
     .select("*")
     .order("created_at", { ascending: false });
 
