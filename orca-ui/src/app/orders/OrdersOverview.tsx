@@ -77,28 +77,41 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     }
   };
 
+  type ProcessAllResponse = {
+    status: "success" | "error";
+    message?: string;
+    email?: { emails_found: number };
+    llm?: { parsed: number };
+    import?: { orders_imported: number };
+  };
+  
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
   
     try {
-      const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
+      const res = await fetch("https://projectorca.onrender.com/process-all", {
+        method: "POST",
+      });
   
-      let json: any = null;
+      let json: ProcessAllResponse | null = null;
+  
       try {
-        json = await res.json();
+        json = (await res.json()) as ProcessAllResponse;
       } catch {
         const text = await res.text();
         console.warn("⚠️ Backend gaf geen JSON, maar wel tekst:", text);
         setProcessResult(`⚠️ Backend gaf geen JSON terug. Response: ${text}`);
-        return; // Stop hier
+        return;
       }
   
-      if (!res.ok || json?.status === "error") {
-        const msg = json?.message || `Onbekende fout (${res.status})`;
+      if (!res.ok || json.status === "error") {
+        const msg = json.message || `Onbekende fout (${res.status})`;
         setProcessResult(`❌ Fout: ${msg}`);
       } else {
-        setProcessResult(`📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`);
+        setProcessResult(
+          `📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`
+        );
         window.location.reload();
       }
   
