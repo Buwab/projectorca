@@ -136,66 +136,83 @@ def thread_fallback(in_reply_to: str, message_refs: str) -> str | None:
     return None
 
 
-def match_order_lines(parent_order_id: str | None, products: list) -> list:
-    matched = []
-    used_ids = set()
+def match_order_lines(parent_order_id: str | None, new_products: list) -> list:
+    matched_lines = []
+    used_prev_ids = set()
     previous_lines = []
 
     if parent_order_id:
         resp = supabase.table("order_lines").select("*").eq("order_id", parent_order_id).execute()
         previous_lines = resp.data or []
 
-    for product in products:
+    # Stap 1: Vergelijk nieuwe producten met eerdere regels
+    for product in new_products:
+        name = product.get("name")
+        unit = product.get("unit")
+        date = product.get("delivery_date")
+
         matched_prev = None
+
         for prev in previous_lines:
-            if prev["id"] in used_ids:
+            if prev["id"] in used_prev_ids:
                 continue
             if (
-                product.get("name") == prev.get("product_name")
-                and product.get("unit") == prev.get("unit")
-                and (product.get("delivery_date") or "") == (prev.get("delivery_date") or "")
+                prev.get("product_name") == name
+                and prev.get("unit") == unit
+                and (prev.get("delivery_date") or "") == (date or "")
             ):
                 matched_prev = prev
                 break
 
         if matched_prev:
-            matched.append({
+            prev_qty = float(matched_prev.get("quantity", 0) or 0)
+            new_qty = float(product.get("quantity", 0) or 0)
+
+            if prev_qty == new_qty:
+                # Zelfde product, zelfde hoeveelheid — waarschijnlijk herhaling → skip
+                used_prev_ids.add(matched_prev["id"])
+                continue
+
+            # Aangepaste hoeveelheid → markeer als update
+            matched_lines.append({
                 **product,
                 "change_type": "update",
                 "modifies_line_id": matched_prev["id"],
                 "line_group_id": matched_prev.get("line_group_id")
             })
-            used_ids.add(matched_prev["id"])
+            used_prev_ids.add(matched_prev["id"])
+
         else:
-            # Fallback delivery_date van gelijke productregel in vorige order
+            # Geen match — voeg toe als nieuwe regel
             fallback_date = next(
-                (prev.get("delivery_date") for prev in previous_lines if product.get("name") == prev.get("product_name")),
-                product.get("delivery_date")
+                (prev.get("delivery_date") for prev in previous_lines if prev.get("product_name") == name),
+                date
             )
-            matched.append({
+            matched_lines.append({
                 **product,
                 "change_type": "add",
                 "modifies_line_id": None,
                 "line_group_id": None,
-                "delivery_date": fallback_date
+                "delivery_date": date or fallback_date
             })
 
-    if previous_lines:
-        existing_keys = {(p["name"], p["unit"], p.get("delivery_date")) for p in products}
-        for prev in previous_lines:
-            key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
-            if key not in existing_keys:
-                matched.append({
-                    "product_name": prev["product_name"],
-                    "quantity": 0,
-                    "unit": prev["unit"],
-                    "delivery_date": prev["delivery_date"],
-                    "change_type": "remove",
-                    "modifies_line_id": prev["id"],
-                    "line_group_id": prev["line_group_id"]
-                })
+    # Stap 2: Vind regels die verwijderd zijn
+    new_keys = {(p.get("name"), p.get("unit"), p.get("delivery_date")) for p in new_products}
+    for prev in previous_lines:
+        key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
+        if key not in new_keys:
+            matched_lines.append({
+                "product_name": prev["product_name"],
+                "quantity": 0,
+                "unit": prev["unit"],
+                "delivery_date": prev["delivery_date"],
+                "change_type": "remove",
+                "modifies_line_id": prev["id"],
+                "line_group_id": prev.get("line_group_id")
+            })
 
-    return matched
+    return matched_lines
+
 
 
 def process_raw_emails():
