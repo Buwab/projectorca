@@ -70,13 +70,26 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
         .from("emails")
         .select("*")
         .order("created_at", { ascending: false });
+  
       if (error) throw error;
-      if (data) setOrders(data as Order[]);
+  
+      if (data) {
+        const newIds = new Set<string>();
+        const oldIds = new Set(orders.map((o) => o.id));
+  
+        for (const o of data) {
+          if (!oldIds.has(o.id)) {
+            newIds.add(o.id);
+          }
+        }
+  
+        setOrders(data as Order[]);
+        setNewlyImportedOrderIds(newIds);
+      }
     } catch (err) {
       console.error("❌ Error fetching orders:", err);
     }
   };
-
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
