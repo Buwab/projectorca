@@ -264,9 +264,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
                `}
   >
     <CardHeader>
-      <CardTitle className="text-sm">
-        {order.subject}
-      </CardTitle>
+                <CardTitle className="text-sm">
+              {order.subject}
+              {newlyImportedOrderIds.has(order.id) && <span className="ml-2 text-blue-500 text-xs">🆕 Nieuw</span>}
+            </CardTitle>
       <p className="text-xs text-muted-foreground">
         {order.sender} • {new Date(order.created_at).toLocaleString()}
       </p>
