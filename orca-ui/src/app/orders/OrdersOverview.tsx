@@ -82,20 +82,32 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setProcessResult(null);
     try {
       const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
-      const json = await res.json();
-      if (json.status === "error") {
-        setProcessResult(`❌ Fout: ${json.message}`);
+  
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (e) {
+        const text = await res.text();
+        console.warn("⚠️ Kon geen JSON parsen. Response:", text);
+        throw new Error("Backend gaf geen geldige JSON terug");
+      }
+  
+      if (!res.ok || json?.status === "error") {
+        const msg = json?.message || `Onbekende fout (${res.status})`;
+        setProcessResult(`❌ Fout: ${msg}`);
       } else {
-        setProcessResult(`📥 ${json.email.emails_found} mails · 🧠 ${json.llm.parsed} parsed · ✅ ${json.import.orders_imported} orders`);
-        // Trigger a page refresh to get updated data through the parent component
+        setProcessResult(`📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`);
         window.location.reload();
       }
-    } catch {
-      setProcessResult("❌ Fout bij verbinden met backend");
+  
+    } catch (e: any) {
+      console.error("❌ Verwerken mislukt:", e);
+      setProcessResult("❌ Fout bij verbinden met backend: " + e.message);
     } finally {
       setProcessing(false);
     }
   };
+  
 
   const handleSendOrder = async (product: Product, productIndex: number) => {
     if (!product.delivery_date) return;
