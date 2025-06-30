@@ -136,7 +136,7 @@ def thread_fallback(in_reply_to: str, message_refs: str) -> str | None:
     return None
 
 
-def match_order_lines(parent_order_id: str | None, new_products: list) -> list:
+def match_order_lines(parent_order_id: str | None, products: list) -> list:
     matched_lines = []
     used_prev_ids = set()
     previous_lines = []
@@ -145,62 +145,58 @@ def match_order_lines(parent_order_id: str | None, new_products: list) -> list:
         resp = supabase.table("order_lines").select("*").eq("order_id", parent_order_id).execute()
         previous_lines = resp.data or []
 
-    # Stap 1: Vergelijk nieuwe producten met eerdere regels
-    for product in new_products:
+    only_one_prev_line = len(previous_lines) == 1
+
+    for product in products:
         name = product.get("name")
         unit = product.get("unit")
-        date = product.get("delivery_date")
-
+        delivery_date = product.get("delivery_date")
         matched_prev = None
 
         for prev in previous_lines:
             if prev["id"] in used_prev_ids:
                 continue
-            if (
-                prev.get("product_name") == name
-                and prev.get("unit") == unit
-                and (prev.get("delivery_date") or "") == (date or "")
-            ):
+
+            prev_name = prev.get("product_name")
+            prev_unit = prev.get("unit")
+            prev_date = prev.get("delivery_date")
+
+            is_same_product = name == prev_name and unit == prev_unit
+            is_exact_match = delivery_date == prev_date
+            is_fallback_match = delivery_date is None and only_one_prev_line
+
+            if is_same_product and (is_exact_match or is_fallback_match):
                 matched_prev = prev
                 break
 
         if matched_prev:
-            prev_qty = float(matched_prev.get("quantity", 0) or 0)
-            new_qty = float(product.get("quantity", 0) or 0)
-
-            if prev_qty == new_qty:
-                # Zelfde product, zelfde hoeveelheid — waarschijnlijk herhaling → skip
-                used_prev_ids.add(matched_prev["id"])
-                continue
-
-            # Aangepaste hoeveelheid → markeer als update
             matched_lines.append({
                 **product,
+                "delivery_date": delivery_date or matched_prev.get("delivery_date"),
                 "change_type": "update",
                 "modifies_line_id": matched_prev["id"],
                 "line_group_id": matched_prev.get("line_group_id")
             })
             used_prev_ids.add(matched_prev["id"])
-
         else:
-            # Geen match — voeg toe als nieuwe regel
+            # Fallback: als mogelijk eerdere datum beschikbaar
             fallback_date = next(
-                (prev.get("delivery_date") for prev in previous_lines if prev.get("product_name") == name),
-                date
+                (prev.get("delivery_date") for prev in previous_lines if name == prev.get("product_name")),
+                delivery_date
             )
             matched_lines.append({
                 **product,
+                "delivery_date": fallback_date,
                 "change_type": "add",
                 "modifies_line_id": None,
-                "line_group_id": None,
-                "delivery_date": date or fallback_date
+                "line_group_id": None
             })
 
-    # Stap 2: Vind regels die verwijderd zijn
-    new_keys = {(p.get("name"), p.get("unit"), p.get("delivery_date")) for p in new_products}
+    # Detecteer verwijderde regels
+    new_keys = {(p["name"], p["unit"], p.get("delivery_date")) for p in products}
     for prev in previous_lines:
         key = (prev.get("product_name"), prev.get("unit"), prev.get("delivery_date"))
-        if key not in new_keys:
+        if key not in new_keys and prev["id"] not in used_prev_ids:
             matched_lines.append({
                 "product_name": prev["product_name"],
                 "quantity": 0,
