@@ -24,7 +24,7 @@ def extract_order_from_email(email_body):
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
-- quantity is komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
+- measuring unitis komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
