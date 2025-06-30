@@ -65,7 +65,7 @@ def import_structured_orders():
             # ⬆️ Voeg toe aan resultaat
             imported += 1
             new_orders.append({
-                "id": structured_id,
+                "id": email_id,
                 "subject": order["subject"],
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
