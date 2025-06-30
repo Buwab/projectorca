@@ -40,6 +40,8 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 50;
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
+  const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
+
 
   // Sync with parent component when initialOrders changes
   useEffect(() => {
@@ -97,7 +99,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       let json: ProcessAllResponse | null = null;
   
       try {
-        json = (await res.json()) as ProcessAllResponse;
+        json = await res.json() as ProcessAllResponse;
       } catch {
         const text = await res.text();
         console.warn("⚠️ Backend gaf geen JSON, maar wel tekst:", text);
@@ -108,11 +110,20 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       if (!res.ok || json.status === "error") {
         const msg = json.message || `Onbekende fout (${res.status})`;
         setProcessResult(`❌ Fout: ${msg}`);
-      } else {
-        setProcessResult(
-          `📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`
-        );
-        window.location.reload();
+        return;
+      }
+  
+      // Toon resultaat
+      setProcessResult(
+        `📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`
+      );
+  
+      // Voeg nieuwe orders toe als ze beschikbaar zijn
+      const newOrders = (json.import as any)?.new_orders as Order[] | undefined;
+  
+      if (newOrders?.length) {
+        setOrders(prev => [...newOrders, ...prev]);
+        setNewlyImportedOrderIds(new Set(newOrders.map(o => o.id)));
       }
   
     } catch (e: unknown) {
@@ -123,6 +134,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       setProcessing(false);
     }
   };
+  
   
 
   const handleSendOrder = async (product: Product, productIndex: number) => {
@@ -241,26 +253,27 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
-          {paginatedOrders.map((order) => (
-            
-            <Card 
-              key={order.id} 
-              onClick={() => setSelectedOrder(order)} 
-              className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
-                         hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
-                         active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
-                         ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
-                         `}
-            >
+        {paginatedOrders.map((order) => (
+  <Card 
+    key={order.id} 
+    onClick={() => setSelectedOrder(order)} 
+    className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
+               hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
+               active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
+               ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
+               `}
+  >
+    <CardHeader>
+      <CardTitle className="text-sm">
+        {order.subject}
+      </CardTitle>
+      <p className="text-xs text-muted-foreground">
+        {order.sender} • {new Date(order.created_at).toLocaleString()}
+      </p>
+    </CardHeader>
+  </Card>
+))}
 
-              <CardHeader>
-                <CardTitle className="text-sm">{order.subject}</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  {order.sender} • {new Date(order.created_at).toLocaleString()}
-                </p>
-              </CardHeader>
-            </Card>
-          ))}
           <div className="flex justify-between mt-4">
             <Button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
               ← Vorige
