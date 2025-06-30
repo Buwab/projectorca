@@ -47,7 +47,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 50;
+  const ordersPerPage = 7;
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
 
@@ -90,19 +90,40 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       console.error("❌ Error fetching orders:", err);
     }
   };
+
+
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
-
+  
     try {
       const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
       const json = await res.json();
+  
       if (!res.ok || json.status === "error") {
         setProcessResult(`❌ Fout: ${json.message || res.status}`);
         return;
       }
+  
+      // ✅ Zet de status bovenaan
       setProcessResult(`📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`);
-      await fetchOrders();
+  
+      // ✅ Als er orders zijn geïmporteerd, update de lijst
+const newOrders: { id: string }[] = json.import?.new_orders ?? [];
+
+if (newOrders.length > 0) {
+  const { data: updatedOrders, error } = await supabase
+    .from("emails")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (!error && updatedOrders) {
+    const newIds = new Set(newOrders.map((o) => o.id));
+    setOrders(updatedOrders as Order[]);
+    setNewlyImportedOrderIds(newIds);
+  }
+}
+  
     } catch (err) {
       console.error("❌ Fout bij verwerken:", err);
       setProcessResult("❌ Fout bij verbinden met backend");
@@ -110,6 +131,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       setProcessing(false);
     }
   };
+  
 
   const handleSendOrder = async (product: Product, index: number) => {
     if (!product.delivery_date || !product.order_line_id) return;
