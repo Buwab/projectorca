@@ -39,13 +39,13 @@ Antwoord in exact dit JSON-format:
   "order_number": null,
   "customer_name": "...",
   "order_date": "YYYY-MM-DD",
-  "delivery_date": "YYYY-MM-DD",
   "special_notes": "...",
   "products": [
     {{
       "name": "...",
       "quantity": ...,
-      "unit": "..."
+      "unit": "...",
+      "delivery_date": "YYYY-MM-DD",
     }}
   ]
 }}

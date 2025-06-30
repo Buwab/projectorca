@@ -36,7 +36,6 @@ def import_structured_orders():
                 "order_number": parsed.get("order_number"),
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
-                "delivery_date": parsed.get("delivery_date"),
                 "special_notes": parsed.get("special_notes"),
             }
 
@@ -52,8 +51,8 @@ def import_structured_orders():
                     "order_id": structured_id,
                     "product_name": product.get("name"),
                     "quantity": product.get("quantity"),
+                    "delivery_date": product.get("delivery_date"),
                     "unit": product.get("unit"),
-                    "delivery_date": product.get("delivery_date") or parsed.get("delivery_date")
                 }
                 supabase.table("order_lines").insert(line_data).execute()
 
