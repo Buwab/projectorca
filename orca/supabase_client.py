@@ -16,11 +16,12 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # create client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def store_email(subject, sender, body, status="raw"):
+def store_email(subject, sender, body, email_timestamp, status="raw"):
     data = {
         "subject": subject,
         "sender": sender,
         "email_body": body,
+        "email_timestamp": email_timestamp,
         "status": status,
     }
     try:

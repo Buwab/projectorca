@@ -41,9 +41,12 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             body = extract_body(msg)
+            
+            # Extract email timestamp
+            email_timestamp = msg["date"]
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender}")
-            store_email(subject, sender, body)
+            store_email(subject, sender, body, email_timestamp)
 
             server.add_flags(uid, [b"\\Seen"])
 

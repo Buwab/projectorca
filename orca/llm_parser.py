@@ -4,8 +4,9 @@ from dotenv import load_dotenv
 from supabase import create_client
 from openai import OpenAI
 from datetime import datetime
+from email.utils import parsedate_tz, mktime_tz
 
-# 🔧 Load .env settings
+# �� Load .env settings
 load_dotenv()
 
 # 📦 Supabase setup
@@ -19,14 +20,31 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # 📅 Huidige datum (voor relatieve datums zoals 'dinsdag')
 today = datetime.today().strftime("%Y-%m-%d")
 
-def extract_order_from_email(email_body):
+def extract_order_from_email(email_body, email_timestamp):
+    today = datetime.today().strftime("%Y-%m-%d")  # Keep this inside for flexibility
+    
+    # Format the timestamp to just a date string (e.g. 2025-07-02)
+    # Handle RFC 2822 email timestamp format
+    try:
+        # Parse RFC 2822 timestamp (e.g., "Mon, 01 Jan 2024 12:00:00 +0000")
+        timestamp_tuple = parsedate_tz(email_timestamp)
+        if timestamp_tuple:
+            timestamp = mktime_tz(timestamp_tuple)
+            email_date = datetime.fromtimestamp(timestamp).date().isoformat()
+        else:
+            # Fallback to current date if parsing fails
+            email_date = today
+    except:
+        # Fallback to current date if any error occurs
+        email_date = today
+    
     prompt = f"""
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
 - measuring unitis komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
-- de order_date is de verzenddatum van de email, msg_data in the email_parser.py
+- "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
 
@@ -86,10 +104,11 @@ def process_raw_emails():
         try:
             email_id = mail["id"]
             body = mail["email_body"]
+            timestamp = mail["email_timestamp"]
 
             print(f"\n🧠 Parsing mail: {mail['subject']}")
 
-            raw_output = extract_order_from_email(body)
+            raw_output = extract_order_from_email(body, timestamp)
             print("🔎 LLM output:")
             print(raw_output)
 
