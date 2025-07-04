@@ -58,8 +58,12 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   useEffect(() => {
     if (selectedOrder) {
       const updated = orders.find((o) => o.id === selectedOrder.id);
-      if (updated && updated !== selectedOrder) {
-        setSelectedOrder(updated);
+      if (updated) {
+        // Deep comparison to check if the order data has actually changed
+        const hasChanged = JSON.stringify(updated) !== JSON.stringify(selectedOrder);
+        if (hasChanged) {
+          setSelectedOrder(updated);
+        }
       }
     }
   }, [orders, selectedOrder]);
@@ -94,15 +98,99 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
 const newOrders: { id: string }[] = json.import?.new_orders ?? [];
 
 if (newOrders.length > 0) {
-  const { data: updatedOrders, error } = await supabase
+  // Get all orders
+  const { data: ordersData, error: ordersError } = await supabase
     .from("orders")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (!error && updatedOrders) {
-    const newIds = new Set(newOrders.map((o) => o.id));
-    setOrders(updatedOrders as Order[]);
-    setNewlyImportedOrderIds(newIds);
+  if (ordersError) throw ordersError;
+  if (!ordersData) return;
+
+  // Get ALL order lines to enrich the JSON with IDs
+  const { data: allOrderLines } = await supabase
+    .from("order_lines")
+    .select("id, order_id, product_name, quantity, unit, is_exported");
+
+  // Get the mapping of email_id to structured_order_id
+  const { data: structuredOrders } = await supabase
+    .from("orders_structured")
+    .select("id, email_id");
+
+  // Create a map of all order lines for enriching JSON with IDs
+  const allOrderLinesMap = new Map();
+  
+  if (allOrderLines && structuredOrders) {
+    // Create a map of structured_id to email_id for easier lookup
+    const structuredToEmailMap = new Map(
+      structuredOrders.map(so => [so.id, so.email_id])
+    );
+
+    // Group ALL order lines by email_id for enriching JSON
+    allOrderLines.forEach(line => {
+      const emailId = structuredToEmailMap.get(line.order_id);
+      if (emailId) {
+        if (!allOrderLinesMap.has(emailId)) {
+          allOrderLinesMap.set(emailId, []);
+        }
+        allOrderLinesMap.get(emailId).push(line);
+      }
+    });
+  }
+
+  // Enrich the orders data with order_line_id from the order_lines table
+  const updatedOrders = ordersData.map(order => {
+    if (!order.parsed_data?.products) return order;
+    
+    const orderLinesForThisOrder = allOrderLinesMap.get(order.id) || [];
+    
+    return {
+      ...order,
+      parsed_data: {
+        ...order.parsed_data,
+        products: order.parsed_data.products.map((product: {
+          name: string;
+          quantity: number;
+          unit: string;
+          delivery_date?: string;
+          is_exported?: boolean;
+          order_line_id?: string | null;
+        }) => {
+          // Try to find the matching order line for this product
+          const matchingOrderLine = orderLinesForThisOrder.find((line: {
+            id: string;
+            order_id: string;
+            product_name: string;
+            quantity: number;
+            unit: string;
+            is_exported: boolean;
+          }) => 
+            line.product_name === product.name &&
+            line.quantity === product.quantity &&
+            line.unit === product.unit
+          );
+          
+          return {
+            ...product,
+            order_line_id: matchingOrderLine?.id || null,
+            is_exported: matchingOrderLine?.is_exported || false
+          };
+        })
+      }
+    };
+  });
+
+  const newIds = new Set(newOrders.map((o) => o.id));
+  setOrders(updatedOrders as Order[]);
+  setNewlyImportedOrderIds(newIds);
+  
+  // Update selectedOrder if it's one of the newly imported orders
+  if (selectedOrder && newIds.has(selectedOrder.id)) {
+    const updatedSelectedOrder = updatedOrders.find((o) => o.id === selectedOrder.id);
+    if (updatedSelectedOrder) {
+      console.log('🔄 Updating selected order with fresh data from database');
+      setSelectedOrder(updatedSelectedOrder as Order);
+    }
   }
 }
   
@@ -116,7 +204,13 @@ if (newOrders.length > 0) {
   
 
   const handleSendOrder = async (product: Product, index: number) => {
-    if (!product.delivery_date || !product.order_line_id) return;
+    if (!product.delivery_date || !product.order_line_id) {
+      console.log('❌ Cannot send order: missing delivery_date or order_line_id', { 
+        delivery_date: product.delivery_date, 
+        order_line_id: product.order_line_id 
+      });
+      return;
+    }
     const key = product.order_line_id;
     setSendingOrders((prev) => new Set(prev).add(key));
 
