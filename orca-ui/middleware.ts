@@ -6,7 +6,7 @@ const BASIC_AUTH_PASS = process.env.BASIC_AUTH_PASS || ''
 const WHITELIST = (process.env.IP_WHITELIST || '').split(',').filter(ip => ip.trim() !== '')
 
 export function middleware(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') || request.ip || ''
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
   
   // Allow access if IP is whitelisted (only if whitelist is not empty)
   if (WHITELIST.length > 0 && WHITELIST.includes(ip)) {
