@@ -19,21 +19,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         if (response.ok) {
           setIsAuthenticated(true)
         } else if (response.status === 401) {
-          // Trigger browser basic auth dialog
-          const authResponse = await fetch('/api/auth/check', {
-            method: 'GET',
-            headers: {
-              'Cache-Control': 'no-cache',
-            },
-          })
-          
-          if (authResponse.ok) {
-            setIsAuthenticated(true)
-          } else {
-            // Force browser to show basic auth dialog
-            window.location.href = '/api/auth/login'
-            return
-          }
+          // Not authenticated - redirect to login to trigger basic auth dialog
+          window.location.href = '/api/auth/login'
+          return
         }
       } catch (error) {
         console.error('Auth check failed:', error)
