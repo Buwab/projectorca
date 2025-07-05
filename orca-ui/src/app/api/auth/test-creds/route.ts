@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
         const decoded = atob(encoded)
         const [user, pass] = decoded.split(':')
         decodedCreds = { user, pass: pass ? '***' : 'empty' }
-      } catch (e) {
+      } catch {
         decodedCreds = { error: 'Failed to decode' }
       }
     }
