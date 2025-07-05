@@ -34,9 +34,9 @@ export default function Page() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        // First get all orders
+        // First get all emails
         const { data: ordersData, error: ordersError } = await supabase
-          .from("orders")
+          .from("emails")
           .select("*")
           .order("created_at", { ascending: false });
 
@@ -54,9 +54,9 @@ export default function Page() {
           .from("order_lines")
           .select("id, order_id, product_name, quantity, unit, is_exported");
 
-        // Get the mapping of email_id to structured_order_id
+        // Get the mapping of email_id to order_id
         const { data: structuredOrders } = await supabase
-          .from("orders_structured")
+          .from("orders")
           .select("id, email_id");
 
         // Create a map of structured order IDs to their exported products

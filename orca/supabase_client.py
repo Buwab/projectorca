@@ -24,7 +24,7 @@ def store_email(subject, sender, body, status="raw"):
         "status": status,
     }
     try:
-        response = supabase.table("orders").insert(data).execute()
-        print("✅ Order opgeslagen in Supabase:", response.data)
+        response = supabase.table("emails").insert(data).execute()
+        print("✅ Email opgeslagen in Supabase:", response.data)
     except Exception as e:
         print("❌ Fout bij opslaan in Supabase:", e)
