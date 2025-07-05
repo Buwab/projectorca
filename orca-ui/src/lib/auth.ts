@@ -31,13 +31,7 @@ export function validateBasicAuth(authHeader: string | null): boolean {
 }
 
 export function requireAuth(request: NextRequest): NextResponse | null {
-  // Temporarily disable IP whitelist for testing
-  // const ip = getClientIP(request)
-  // if (isIPWhitelisted(ip)) {
-  //   return null // Allow access
-  // }
-  
-  // Require authentication
+  // Require authentication (IP whitelist temporarily disabled)
   const authHeader = request.headers.get('authorization')
   if (!validateBasicAuth(authHeader)) {
     return new NextResponse('Unauthorized', {
