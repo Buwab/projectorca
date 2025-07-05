@@ -42,7 +42,7 @@ export function requireAuth(request: NextRequest): NextResponse | null {
   return null // Allow access
 }
 
-// Server-side auth for API routes
+// Server-side authentication for API routes
 export function withAuth(
   handler: (request: NextRequest, context?: { params?: Record<string, string> }) => Promise<Response> | Response
 ) {
