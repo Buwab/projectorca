@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER || ''
-const BASIC_AUTH_PASS = process.env.BASIC_AUTH_PASS || ''
-const WHITELIST = (process.env.IP_WHITELIST || '').split(',').map(ip => ip.trim()).filter(ip => ip !== '')
-
 export function getClientIP(request: NextRequest): string {
   const forwardedFor = request.headers.get('x-forwarded-for') || ''
   const realIp = request.headers.get('x-real-ip') || ''
@@ -11,7 +7,8 @@ export function getClientIP(request: NextRequest): string {
 }
 
 export function isIPWhitelisted(ip: string): boolean {
-  return WHITELIST.length > 0 && WHITELIST.includes(ip)
+  const whitelist = (process.env.IP_WHITELIST || '').split(',').map(ip => ip.trim()).filter(ip => ip !== '')
+  return whitelist.length > 0 && whitelist.includes(ip)
 }
 
 export function validateBasicAuth(authHeader: string | null): boolean {
@@ -23,8 +20,10 @@ export function validateBasicAuth(authHeader: string | null): boolean {
   try {
     const decoded = atob(encoded)
     const [user, pass] = decoded.split(':')
-    return user === BASIC_AUTH_USER && pass === BASIC_AUTH_PASS && 
-           BASIC_AUTH_USER !== '' && BASIC_AUTH_PASS !== ''
+    const basicAuthUser = process.env.BASIC_AUTH_USER || ''
+    const basicAuthPass = process.env.BASIC_AUTH_PASS || ''
+    return user === basicAuthUser && pass === basicAuthPass && 
+           basicAuthUser !== '' && basicAuthPass !== ''
   } catch {
     return false
   }
