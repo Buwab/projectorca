@@ -76,7 +76,7 @@ def clean_json_output(raw_text):
     return raw_text
 
 def process_raw_emails():
-    response = supabase.table("orders").select("*").eq("llm_processed", False).execute()
+    response = supabase.table("emails").select("*").eq("llm_processed", False).execute()
     emails = response.data
 
     print(f"🔍 Gevonden ongeparste e-mails: {len(emails)}")
@@ -96,7 +96,7 @@ def process_raw_emails():
             cleaned_output = clean_json_output(raw_output)
             parsed_json = json.loads(cleaned_output)
 
-            supabase.table("orders").update({
+            supabase.table("emails").update({
                 "parsed_data": parsed_json,
                 "llm_processed": True
             }).eq("id", email_id).execute()

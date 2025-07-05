@@ -12,28 +12,28 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def import_structured_orders():
     # ⬇️ Selecteer orders met LLM output die nog niet zijn geïmporteerd
-    response = supabase.table("orders") \
+    response = supabase.table("emails") \
         .select("*") \
         .eq("llm_processed", True) \
         .eq("structured_imported", False) \
         .execute()
 
-    orders = response.data
-    print(f"📥 Orders klaar voor import: {len(orders)}")
+    emails = response.data
+    print(f"📥 Emails klaar voor import: {len(emails)}")
 
     imported = 0
     new_orders = []
 
-    for order in orders:
+    for email in emails:
         try:
-            email_id = order["id"]
-            parsed = order["parsed_data"]
+            email_id = email["id"]
+            parsed = email["parsed_data"]
 
             if not parsed:
-                print(f"⚠️ Geen parsed_data bij e-mail: {order['subject']}")
+                print(f"⚠️ Geen parsed_data bij e-mail: {email['subject']}")
                 continue
 
-            # ⬇️ Insert in orders_structured
+            # ⬇️ Insert in orders
             order_structured_data = {
                 "email_id": email_id,
                 "order_number": parsed.get("order_number"),
@@ -42,10 +42,10 @@ def import_structured_orders():
                 "special_notes": parsed.get("special_notes"),
             }
 
-            response_structured = supabase.table("orders_structured").insert(order_structured_data).execute()
+            response_structured = supabase.table("orders").insert(order_structured_data).execute()
             structured_id = response_structured.data[0]["id"]
 
-            print(f"✅ Order ingevoerd: {order['subject']} → order_id = {structured_id}")
+            print(f"✅ Order ingevoerd: {email['subject']} → order_id = {structured_id}")
 
             # ⬇️ Insert alle producten in order_lines
             products = parsed.get("products", [])
@@ -60,19 +60,19 @@ def import_structured_orders():
                 supabase.table("order_lines").insert(line_data).execute()
 
             # ⬇️ Markeer originele mail als verwerkt
-            supabase.table("orders").update({"structured_imported": True}).eq("id", email_id).execute()
+            supabase.table("emails").update({"structured_imported": True}).eq("id", email_id).execute()
 
             # ⬆️ Voeg toe aan resultaat
             imported += 1
             new_orders.append({
                 "id": email_id,
-                "subject": order["subject"],
+                "subject": email["subject"],
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
             })
 
         except Exception as e:
-            print(f"❌ Fout bij importeren van order '{order.get('subject', '')}': {e}")
+            print(f"❌ Fout bij importeren van order '{email.get('subject', '')}': {e}")
 
     return imported, new_orders
 
