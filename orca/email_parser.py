@@ -1,6 +1,7 @@
 # email_parser.py
 from imapclient import IMAPClient
 import email
+from email.utils import parsedate_to_datetime
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
@@ -9,7 +10,7 @@ from supabase_client import store_email
 load_dotenv()
 
 HOST = os.getenv("IMAP_SERVER")
-PORT = int(os.getenv("IMAP_PORT"))
+PORT = int(os.getenv("IMAP_PORT")) 
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
@@ -42,8 +43,17 @@ def process_emails():
             sender = msg["from"]
             body = extract_body(msg)
 
-            print(f"✉️ Verwerk e-mail: {subject} van {sender}")
-            store_email(subject, sender, body)
+            # Parse sent date
+            raw_date = msg.get("Date")
+            sent_at = None
+            if raw_date:
+                try:
+                    sent_at = parsedate_to_datetime(raw_date).isoformat()
+                except Exception as e:
+                    print(f"⚠️ Kon verzenddatum niet parseren: {raw_date} ({e})")
+
+            print(f"✉️ Verwerk e-mail: {subject} van {sender} verzonden op {sent_at}")
+            store_email(subject, sender, body, sent_at)
 
             server.add_flags(uid, [b"\\Seen"])
 
