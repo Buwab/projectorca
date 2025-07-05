@@ -51,17 +51,16 @@ export function requireAuth(request: NextRequest): NextResponse | null {
 }
 
 // Server-side authentication for API routes
-export function withAuth<T extends any[]>(
-  handler: (...args: T) => Promise<Response> | Response
+export function withAuth(
+  handler: (request: NextRequest, context?: { params?: Record<string, string> }) => Promise<Response> | Response
 ) {
-  return async (...args: T): Promise<Response> => {
-    const request = args[0] as NextRequest
+  return async (request: NextRequest, context?: { params?: Record<string, string> }): Promise<Response> => {
     const authResult = requireAuth(request)
     
     if (authResult) {
       return authResult
     }
     
-    return handler(...args)
+    return handler(request, context)
   }
 } 
