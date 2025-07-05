@@ -14,14 +14,6 @@ PORT = int(os.getenv("IMAP_PORT"))
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-# Check for required environment variables
-if not HOST or not USER or not PASSWORD:
-    print("⚠️ Missing required environment variables:")
-    if not HOST: print("  - IMAP_SERVER")
-    if not USER: print("  - EMAIL_USER") 
-    if not PASSWORD: print("  - EMAIL_PASSWORD")
-    print("Please set these in your .env file or environment")
-
 def extract_body(msg):
     if msg.is_multipart():
         for part in msg.walk():
