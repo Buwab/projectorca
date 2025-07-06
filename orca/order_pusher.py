@@ -47,13 +47,13 @@ def create_trello_card(order_id: str, product: Dict[str, Any]) -> bool:
             logger.error("Supabase client not initialized")
             return False
             
-        response = supabase.from_('orders').select('*').eq('id', order_id).execute()
+        response = supabase.from_('emails').select('*').eq('id', order_id).execute()
         if not response.data:
-            logger.error(f"Order {order_id} not found in database")
+            logger.error(f"Email {order_id} not found in database")
             return False
             
         order = response.data[0]
-        logger.info(f"Found order in database: {order['subject']}")
+        logger.info(f"Found email in database: {order['subject']}")
         
         url = f'https://api.trello.com/1/cards'
         headers = {
