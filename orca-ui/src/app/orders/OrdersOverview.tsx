@@ -98,9 +98,9 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
 const newOrders: { id: string }[] = json.import?.new_orders ?? [];
 
 if (newOrders.length > 0) {
-  // Get all orders
+  // Get all emails
   const { data: ordersData, error: ordersError } = await supabase
-    .from("orders")
+    .from("emails")
     .select("*")
     .order("created_at", { ascending: false });
 
@@ -112,9 +112,9 @@ if (newOrders.length > 0) {
     .from("order_lines")
     .select("id, order_id, product_name, quantity, unit, is_exported");
 
-  // Get the mapping of email_id to structured_order_id
+  // Get the mapping of email_id to order_id
   const { data: structuredOrders } = await supabase
-    .from("orders_structured")
+    .from("orders")
     .select("id, email_id");
 
   // Create a map of all order lines for enriching JSON with IDs
