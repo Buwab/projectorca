@@ -33,7 +33,7 @@ def extract_order_from_email(email_body, email_timestamp=None):
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
-- measuring unitis komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
+- measuring units komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
 - "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
