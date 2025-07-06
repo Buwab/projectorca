@@ -55,6 +55,9 @@ def create_trello_card(order_id: str, product: Dict[str, Any]) -> bool:
         order = response.data[0]
         logger.info(f"Found email in database: {order['subject']}")
         
+        # Use sender_name or sender_email for display
+        sender_display = order.get('sender_name') or order.get('sender_email', 'Unknown')
+        
         url = f'https://api.trello.com/1/cards'
         headers = {
             'Accept': 'application/json'
@@ -65,7 +68,7 @@ def create_trello_card(order_id: str, product: Dict[str, Any]) -> bool:
             'idList': LIST_ID,
             'name': f"Order: {product.get('name', 'Unknown')} - {product.get('delivery_date', 'No date')}",
             'desc': f"""
-            Order from: {order.get('sender', 'Unknown')}
+            Order from: {sender_display}
             Product: {product.get('name', 'Unknown')}
             Quantity: {product.get('quantity', 0)} {product.get('unit', '')}
             Delivery Date: {product.get('delivery_date', 'No date')}

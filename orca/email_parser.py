@@ -1,6 +1,7 @@
 # email_parser.py
 from imapclient import IMAPClient
 import email
+import email.utils
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
@@ -40,10 +41,16 @@ def process_emails():
 
             subject = msg["subject"]
             sender = msg["from"]
+            
+            # Use email.utils.parseaddr() to properly parse the email address
+            sender_name, sender_email = email.utils.parseaddr(sender)
+            
             body = extract_body(msg)
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender}")
-            store_email(subject, sender, body)
+            print(f"📧 Extracted email: {sender_email}")
+            print(f"👤 Sender name: {sender_name}")
+            store_email(subject, sender_email, sender_name, body)
 
             server.add_flags(uid, [b"\\Seen"])
 
