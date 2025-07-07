@@ -25,6 +25,8 @@ def store_email(subject, sender_email, sender_name, body, status="raw"):
         "email_body": body,
         "status": status,
     }
+    if sent_at:
+        data["email_timestamp"] = sent_at
     try:
         response = supabase.table("emails").insert(data).execute()
         print("✅ Email opgeslagen in Supabase:", response.data)

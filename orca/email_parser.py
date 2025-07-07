@@ -1,7 +1,7 @@
 # email_parser.py
 from imapclient import IMAPClient
 import email
-import email.utils
+from email.utils import parsedate_to_datetime
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
@@ -10,7 +10,7 @@ from supabase_client import store_email
 load_dotenv()
 
 HOST = os.getenv("IMAP_SERVER")
-PORT = int(os.getenv("IMAP_PORT"))
+PORT = int(os.getenv("IMAP_PORT")) 
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
@@ -46,7 +46,6 @@ def process_emails():
             sender_name, sender_email = email.utils.parseaddr(sender)
             
             body = extract_body(msg)
-
             print(f"✉️ Verwerk e-mail: {subject} van {sender}")
             print(f"📧 Extracted email: {sender_email}")
             print(f"👤 Sender name: {sender_name}")

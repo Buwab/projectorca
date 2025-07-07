@@ -19,14 +19,23 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # 📅 Huidige datum (voor relatieve datums zoals 'dinsdag')
 today = datetime.today().strftime("%Y-%m-%d")
 
-def extract_order_from_email(email_body):
+def extract_order_from_email(email_body, email_timestamp=None):
+    # Format email timestamp to date if available
+    email_date = None
+    if email_timestamp:
+        try:
+            # Convert ISO timestamp to just the date part
+            email_date = email_timestamp.split('T')[0]
+        except:
+            email_date = None
+    
     prompt = f"""
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
-- measuring unitis komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
+- measuring units komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
-- de order_date is de verzenddatum van de email, msg_data in the email_parser.py
+- "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
 
@@ -86,10 +95,16 @@ def process_raw_emails():
         try:
             email_id = mail["id"]
             body = mail["email_body"]
+            email_timestamp = mail.get("email_timestamp")
 
             print(f"\n🧠 Parsing mail: {mail['subject']}")
+            if email_timestamp:
+                email_date = email_timestamp.split('T')[0]
+                print(f"📅 Using email date: {email_date}")
+            else:
+                print("⚠️ No email timestamp available")
 
-            raw_output = extract_order_from_email(body)
+            raw_output = extract_order_from_email(body, email_timestamp)
             print("🔎 LLM output:")
             print(raw_output)
 
