@@ -10,7 +10,8 @@ interface Order {
     id: string;
     created_at: string;
     subject: string;
-    sender: string;
+    sender_name: string;
+    sender_email: string;
     email_body: string;
   
     parsed_data: {

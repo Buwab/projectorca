@@ -31,7 +31,8 @@ interface Order {
   id: string;
   created_at: string;
   subject: string;
-  sender: string;
+  sender_name: string;
+  sender_email: string;
   email_body: string;
   parsed_data: {
     products?: Product[];
@@ -315,7 +316,7 @@ if (newOrders.length > 0) {
               {newlyImportedOrderIds.has(order.id) && <span className="ml-2 text-blue-500 text-xs">🆕 Nieuw</span>}
             </CardTitle>
       <p className="text-xs text-muted-foreground">
-        {order.sender} • {new Date(order.created_at).toLocaleString()}
+        {order.sender_name || order.sender_email} • {new Date(order.created_at).toLocaleString()}
       </p>
     </CardHeader>
   </Card>
@@ -336,7 +337,10 @@ if (newOrders.length > 0) {
           <div className="col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Raw Email Body</CardTitle>
+                <CardTitle className="text-base">Email Details</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  From: {selectedOrder.sender_name || selectedOrder.sender_email}
+                </p>
               </CardHeader>
               <CardContent>
                 <Textarea value={selectedOrder.email_body} className="h-[80vh] font-mono text-xs" readOnly />
@@ -350,7 +354,7 @@ if (newOrders.length > 0) {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Gestructureerde Order</CardTitle>
-                <p className="text-xs text-muted-foreground">{selectedOrder.sender}</p>
+                <p className="text-xs text-muted-foreground">{selectedOrder.sender_name || selectedOrder.sender_email}</p>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="lines" className="w-full">
