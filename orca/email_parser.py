@@ -41,19 +41,15 @@ def process_emails():
 
             subject = msg["subject"]
             sender = msg["from"]
+            
+            # Use email.utils.parseaddr() to properly parse the email address
+            sender_name, sender_email = email.utils.parseaddr(sender)
+            
             body = extract_body(msg)
-
-            # Parse sent date
-            raw_date = msg.get("Date")
-            sent_at = None
-            if raw_date:
-                try:
-                    sent_at = parsedate_to_datetime(raw_date).isoformat()
-                except Exception as e:
-                    print(f"⚠️ Kon verzenddatum niet parseren: {raw_date} ({e})")
-
-            print(f"✉️ Verwerk e-mail: {subject} van {sender} verzonden op {sent_at}")
-            store_email(subject, sender, body, sent_at)
+            print(f"✉️ Verwerk e-mail: {subject} van {sender}")
+            print(f"📧 Extracted email: {sender_email}")
+            print(f"👤 Sender name: {sender_name}")
+            store_email(subject, sender_email, sender_name, body)
 
             server.add_flags(uid, [b"\\Seen"])
 
