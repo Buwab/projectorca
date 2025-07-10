@@ -84,7 +84,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     setProcessResult(null);
   
     try {
-      const res = await fetch("https://projectorca.onrender.com/process-all", { method: "POST" });
+      const res = await fetch(process.env.NEXT_PUBLIC_PROCESS_ALL_URL!, { method: "POST" });
       const json = await res.json();
   
       if (!res.ok || json.status === "error") {
@@ -216,7 +216,7 @@ if (newOrders.length > 0) {
     setSendingOrders((prev) => new Set(prev).add(key));
 
     try {
-      const res = await fetch("https://projectorca.onrender.com/send-to-trello", {
+      const res = await fetch(process.env.NEXT_PUBLIC_SEND_TO_TRELLO_URL!, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ order_id: selectedOrder?.id, product, product_index: index }),
