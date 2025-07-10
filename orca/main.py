@@ -1,39 +1,42 @@
-# main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from order_pusher import create_trello_card, update_product_sent_status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Dict, Any
 import logging
+
+from order_pusher import create_trello_card, update_product_sent_status
 from email_parser import run as run_email_parser
 from llm_parser import run as run_llm_parser
 from import_structured_orders import run as run_import_orders
 
-# Configure logging
+# 🔧 Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# 🛡️ CORS: More specific configurations
+# 🛡️ CORS config — allow everything for now (dev)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now to fix the CORS issue
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# 🩵 Health check
 @app.get("/")
 def root():
     return {"message": "API is running."}
 
+# 📥 Process all emails
 @app.post("/process-all")
 def process_all():
     try:
-        email_result = run_email_parser()         # bijv. {"emails_found": 2}
-        llm_result = run_llm_parser()             # bijv. {"parsed": 2}
-        import_result = run_import_orders()       # bijv. {"orders_imported": 2}
+        email_result = run_email_parser()
+        llm_result = run_llm_parser()
+        import_result = run_import_orders()
 
         return {
             "status": "done",
@@ -43,41 +46,47 @@ def process_all():
         }
 
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error(f"❌ Error in /process-all: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
 
-
+# 📤 Trello export endpoint
 class SendOrderRequest(BaseModel):
     order_id: str
     product: Dict[str, Any]
     product_index: int
 
-@app.get("/")
-def root():
-    return {"message": "API is running."}
-
 @app.post("/send-to-trello")
 def send_to_trello(request: SendOrderRequest):
     try:
-        logger.info(f"Received request to send order {request.order_id} to Trello")
-        
-        # Create the Trello card
-        logger.info("Attempting to create Trello card")
+        logger.info(f"📨 Incoming Trello request for order {request.order_id}")
+
+        # 1. Create Trello card
         card_created = create_trello_card(request.order_id, request.product)
         if not card_created:
-            logger.error("Failed to create Trello card")
-            raise HTTPException(status_code=500, detail="Failed to create Trello card")
-            
-        # Update the sent status in the database
-        logger.info("Attempting to update product sent status")
-        logger.info(f"Product data being sent to update function: {request.product}")
+            logger.error("❌ Failed to create Trello card")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": "Failed to create Trello card"}
+            )
+
+        # 2. Update Supabase product export status
         status_updated = update_product_sent_status(request.product)
         if not status_updated:
-            logger.error("Failed to update sent status")
-            raise HTTPException(status_code=500, detail="Failed to update sent status")
-            
-        logger.info("Successfully processed Trello request")
+            logger.error("❌ Failed to update export status")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": "Failed to update sent status"}
+            )
+
+        logger.info("✅ Trello card created & status updated")
         return {"status": "success", "message": "Order sent to Trello successfully"}
-        
+
     except Exception as e:
-        logger.error(f"Error processing Trello request: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Exception in /send-to-trello: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
