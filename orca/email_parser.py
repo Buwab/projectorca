@@ -43,7 +43,7 @@ def extract_body(msg):
 
     print("[extract_body] Extracted HTML body:", (html_body[:200] + '...') if html_body else "None")
     print("[extract_body] Extracted plain body:", (text_body[:200] + '...') if text_body else "None")
-    return html_body or text_body or "", html_body
+    return {"plain": text_body, "html": html_body}
 
 def extract_sent_at(msg):
     """Extract the sent timestamp from the email's Date header"""
@@ -78,7 +78,9 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             sender_name, sender_email = email.utils.parseaddr(sender)
-            body, html_body = extract_body(msg)
+            bodies = extract_body(msg)
+            plain_body = bodies.get("plain")
+            html_body = bodies.get("html")
 
             sent_at = extract_sent_at(msg)
 
@@ -87,7 +89,7 @@ def process_emails():
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
             print(f"[process_emails] Saving email with HTML body: {html_body is not None}")
-            store_email(subject, sender_email, sender_name, body, sent_at, email_body_html=html_body)
+            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body)
 
             server.add_flags(uid, [b"\\Seen"])
 

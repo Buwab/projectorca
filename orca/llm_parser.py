@@ -33,18 +33,16 @@ def extract_order_from_email(email_body, email_timestamp=None, is_html=False):
     prompt = f"""
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
-- Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
+- Geef datums altijd in formaat \"YYYY-MM-DD\" (ISO 8601).
 - measuring units komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
-- Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
-- "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
+- Vertaal relatieve termen zoals \"morgen\", \"dinsdag\" of \"volgende week\" naar een echte datum, gerekend vanaf vandaag: {today}.
+- \"order_date\" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
 - De e-mail is in {format_note} formaat. Als je een tabel in de order vindt, gebruik die om de producten te extraheren.
 
 Email:
-"""
 {email_body}
-"""
 
 Antwoord in exact dit JSON-format:
 
