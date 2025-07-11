@@ -41,6 +41,8 @@ def extract_body(msg):
         elif ctype == "text/plain":
             text_body = payload
 
+    print("[extract_body] Extracted HTML body:", (html_body[:200] + '...') if html_body else "None")
+    print("[extract_body] Extracted plain body:", (text_body[:200] + '...') if text_body else "None")
     return html_body or text_body or "", html_body
 
 def extract_sent_at(msg):
@@ -84,8 +86,7 @@ def process_emails():
                 sent_at = datetime.now().isoformat()
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
-            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at}")
-            # Store both plain/fallback and HTML body
+            print(f"[process_emails] Saving email with HTML body: {html_body is not None}")
             store_email(subject, sender_email, sender_name, body, sent_at, email_body_html=html_body)
 
             server.add_flags(uid, [b"\\Seen"])
