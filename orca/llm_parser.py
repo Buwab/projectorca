@@ -19,7 +19,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # 📅 Huidige datum (voor relatieve datums zoals 'dinsdag')
 today = datetime.today().strftime("%Y-%m-%d")
 
-def extract_order_from_email(email_body, email_timestamp=None):
+def extract_order_from_email(email_body, email_timestamp=None, is_html=False):
     # Format email timestamp to date if available
     email_date = None
     if email_timestamp:
@@ -29,6 +29,7 @@ def extract_order_from_email(email_body, email_timestamp=None):
         except:
             email_date = None
     
+    format_note = "HTML" if is_html else "plain text"
     prompt = f"""
 Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaande e-mail en geef het resultaat als JSON.
 
@@ -38,11 +39,12 @@ Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaa
 - "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
 - Gebruik geen Markdown, geen codeblokken – alleen de JSON zelf.
+- De e-mail is in {format_note} formaat. Als je een tabel in de order vindt, gebruik die om de producten te extraheren.
 
 Email:
-\"\"\"
+"""
 {email_body}
-\"\"\"
+"""
 
 Antwoord in exact dit JSON-format:
 
@@ -94,8 +96,13 @@ def process_raw_emails():
     for mail in emails:
         try:
             email_id = mail["id"]
-            body = mail["email_body"]
+            html_body = mail.get("email_body_html")
+            plain_body = mail.get("email_body")
             email_timestamp = mail.get("email_timestamp")
+
+            # Prefer HTML body if available
+            is_html = bool(html_body)
+            email_body = html_body if html_body else plain_body
 
             print(f"\n🧠 Parsing mail: {mail['subject']}")
             if email_timestamp:
@@ -104,7 +111,7 @@ def process_raw_emails():
             else:
                 print("⚠️ No email timestamp available")
 
-            raw_output = extract_order_from_email(body, email_timestamp)
+            raw_output = extract_order_from_email(email_body, email_timestamp, is_html=is_html)
             print("🔎 LLM output:")
             print(raw_output)
 

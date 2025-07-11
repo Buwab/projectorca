@@ -19,18 +19,29 @@ USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 def extract_body(msg):
-    """Extract text or HTML body from email message"""
+    """Return the HTML body if available, otherwise fallback to plain text."""
+    html_body = None
+    text_body = None
+
     if msg.is_multipart():
         for part in msg.walk():
             ctype = part.get_content_type()
-            if ctype == "text/plain":
-                return part.get_payload(decode=True).decode()
-            elif ctype == "text/html":
-                html = part.get_payload(decode=True).decode()
-                soup = BeautifulSoup(html, "html.parser")
-                return soup.get_text()
+            disp = str(part.get("Content-Disposition", "")).lower()
+            if "attachment" in disp:
+                continue
+            if ctype == "text/html" and html_body is None:
+                html_body = part.get_payload(decode=True).decode(errors="replace")
+            elif ctype == "text/plain" and text_body is None:
+                text_body = part.get_payload(decode=True).decode(errors="replace")
     else:
-        return msg.get_payload(decode=True).decode()
+        ctype = msg.get_content_type()
+        payload = msg.get_payload(decode=True).decode(errors="replace")
+        if ctype == "text/html":
+            html_body = payload
+        elif ctype == "text/plain":
+            text_body = payload
+
+    return html_body or text_body or "", html_body
 
 def extract_sent_at(msg):
     """Extract the sent timestamp from the email's Date header"""
@@ -65,7 +76,7 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             sender_name, sender_email = email.utils.parseaddr(sender)
-            body = extract_body(msg)
+            body, html_body = extract_body(msg)
 
             sent_at = extract_sent_at(msg)
 
@@ -74,7 +85,8 @@ def process_emails():
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at}")
-            store_email(subject, sender_email, sender_name, body, sent_at)
+            # Store both plain/fallback and HTML body
+            store_email(subject, sender_email, sender_name, body, sent_at, email_body_html=html_body)
 
             server.add_flags(uid, [b"\\Seen"])
 
