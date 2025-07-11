@@ -196,7 +196,7 @@ if (newOrders.length > 0) {
 }
   
     } catch (err) {
-      console.error("❌ Fout bij verwerken:", err);
+      console.error("❌ Fout bij het verwerken van de nieuwe e-mails:", err);
       setProcessResult("❌ Fout bij verbinden met backend");
     } finally {
       setProcessing(false);
