@@ -19,18 +19,31 @@ USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 def extract_body(msg):
-    """Extract text or HTML body from email message"""
+    """Return the HTML body if available, otherwise fallback to plain text."""
+    html_body = None
+    text_body = None
+
     if msg.is_multipart():
         for part in msg.walk():
             ctype = part.get_content_type()
-            if ctype == "text/plain":
-                return part.get_payload(decode=True).decode()
-            elif ctype == "text/html":
-                html = part.get_payload(decode=True).decode()
-                soup = BeautifulSoup(html, "html.parser")
-                return soup.get_text()
+            disp = str(part.get("Content-Disposition", "")).lower()
+            if "attachment" in disp:
+                continue
+            if ctype == "text/html" and html_body is None:
+                html_body = part.get_payload(decode=True).decode(errors="replace")
+            elif ctype == "text/plain" and text_body is None:
+                text_body = part.get_payload(decode=True).decode(errors="replace")
     else:
-        return msg.get_payload(decode=True).decode()
+        ctype = msg.get_content_type()
+        payload = msg.get_payload(decode=True).decode(errors="replace")
+        if ctype == "text/html":
+            html_body = payload
+        elif ctype == "text/plain":
+            text_body = payload
+
+    print("[extract_body] Extracted HTML body:", (html_body[:200] + '...') if html_body else "None")
+    print("[extract_body] Extracted plain body:", (text_body[:200] + '...') if text_body else "None")
+    return {"plain": text_body, "html": html_body}
 
 def extract_sent_at(msg):
     """Extract the sent timestamp from the email's Date header"""
@@ -50,6 +63,7 @@ def extract_sent_at(msg):
     print("⚠️ Geen geldige verzenddatum gevonden in headers.")
     return None
 
+
 def process_emails():
     with IMAPClient(HOST, ssl=True) as server:
         server.login(USER, PASSWORD)
@@ -65,7 +79,9 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             sender_name, sender_email = email.utils.parseaddr(sender)
-            body = extract_body(msg)
+            bodies = extract_body(msg)
+            plain_body = bodies.get("plain")
+            html_body = bodies.get("html")
 
             sent_at = extract_sent_at(msg)
 
@@ -73,8 +89,8 @@ def process_emails():
                 sent_at = datetime.now().isoformat()
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
-            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at}")
-            store_email(subject, sender_email, sender_name, body, sent_at)
+            print(f"[process_emails] Saving email with HTML body: {html_body is not None}")
+            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body)
 
             server.add_flags(uid, [b"\\Seen"])
 
