@@ -40,6 +40,7 @@ def import_structured_orders():
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
                 "special_notes": parsed.get("special_notes"),
+                "client_id": email.get("client_id"),
             }
 
             response_structured = supabase.table("orders").insert(order_structured_data).execute()

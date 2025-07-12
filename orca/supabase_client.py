@@ -16,19 +16,20 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # create client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def store_email(subject, sender_email, sender_name, body, sent_at=None, status="raw"):
-    """Store email with parsed sender information and optional sent timestamp"""
+def store_email(subject, sender_email, sender_name, body, sent_at=None, return_path=None, client_id=None, status="raw"):
+    """Store email with parsed sender and return_path information and optional sent timestamp"""
     data = {
         "subject": subject,
         "sender_email": sender_email,
         "sender_name": sender_name,
         "email_body": body,
         "status": status,
+        "return_path": return_path,
     }
-
+    if client_id:
+        data["client_id"] = client_id
     if sent_at:
         data["email_timestamp"] = sent_at  # ISO string uit de parser
-
     try:
         response = supabase.table("emails").insert(data).execute()
         print("✅ Email opgeslagen in Supabase:", response.data)
