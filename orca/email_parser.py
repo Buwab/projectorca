@@ -3,7 +3,6 @@
 from imapclient import IMAPClient
 import email
 import email.utils
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from datetime import datetime
 from email.utils import parsedate_tz, mktime_tz
