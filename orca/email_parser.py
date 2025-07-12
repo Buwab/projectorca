@@ -50,6 +50,17 @@ def extract_sent_at(msg):
     print("⚠️ Geen geldige verzenddatum gevonden in headers.")
     return None
 
+def get_client_id_by_return_path(return_path):
+    """Fetch client id by return_path from clients table."""
+    from supabase_client import supabase
+    try:
+        response = supabase.table("clients").select("id").eq("return_path", return_path).single().execute()
+        if response.data:
+            return response.data["id"]
+    except Exception as e:
+        print(f"❌ Fout bij ophalen client_id voor return_path '{return_path}': {e}")
+    return None
+
 def process_emails():
     with IMAPClient(HOST, ssl=True) as server:
         server.login(USER, PASSWORD)
@@ -77,7 +88,8 @@ def process_emails():
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path})")
-            store_email(subject, sender_email, sender_name, body, sent_at, return_path)
+            client_id = get_client_id_by_return_path(return_path) if return_path else None
+            store_email(subject, sender_email, sender_name, body, sent_at, return_path, client_id)
 
             server.add_flags(uid, [b"\\Seen"])
 
