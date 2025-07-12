@@ -65,6 +65,9 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             sender_name, sender_email = email.utils.parseaddr(sender)
+            # Extract return_path (client) from Return-Path
+            return_path_header = msg.get("Return-Path")
+            _, return_path = email.utils.parseaddr(return_path_header) if return_path_header else (None, None)
             body = extract_body(msg)
 
             sent_at = extract_sent_at(msg)
@@ -73,8 +76,8 @@ def process_emails():
                 sent_at = datetime.now().isoformat()
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
-            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at}")
-            store_email(subject, sender_email, sender_name, body, sent_at)
+            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path})")
+            store_email(subject, sender_email, sender_name, body, sent_at, return_path)
 
             server.add_flags(uid, [b"\\Seen"])
 
