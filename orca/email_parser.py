@@ -89,7 +89,7 @@ def process_emails():
 
             print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path})")
             client_id = get_client_id_by_return_path(return_path) if return_path else None
-            store_email(subject, sender_email, sender_name, body, sent_at, return_path, client_id)
+            store_email(subject, sender_email, sender_name, body, sent_at, return_path=return_path, client_id=client_id)
 
             server.add_flags(uid, [b"\\Seen"])
 
