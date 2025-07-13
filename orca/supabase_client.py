@@ -16,7 +16,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # create client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def store_email(subject, sender_email, sender_name, body, sent_at=None, return_path=None, client_id=None, status="raw"):
+def store_email(subject, sender_email, sender_name, body, body_html=None, sent_at=None, return_path=None, client_id=None, status="raw"):
     """Store email with parsed sender and return_path information and optional sent timestamp"""
     data = {
         "subject": subject,
@@ -26,6 +26,8 @@ def store_email(subject, sender_email, sender_name, body, sent_at=None, return_p
         "status": status,
         "return_path": return_path,
     }
+    if body_html is not None:
+        data["email_body_html"] = body_html
     if client_id:
         data["client_id"] = client_id
     if sent_at:

@@ -34,6 +34,7 @@ interface Order {
   sender_name: string;
   sender_email: string;
   email_body: string;
+  email_body_html?: string; // Added for HTML body
   parsed_data: {
     products?: Product[];
     [key: string]: unknown;
@@ -343,7 +344,14 @@ if (newOrders.length > 0) {
                 </p>
               </CardHeader>
               <CardContent>
-                <Textarea value={selectedOrder.email_body} className="h-[80vh] font-mono text-xs" readOnly />
+                {selectedOrder.email_body_html ? (
+                  <div
+                    className="h-[80vh] overflow-auto border rounded bg-white p-2 text-xs font-mono"
+                    dangerouslySetInnerHTML={{ __html: selectedOrder.email_body_html }}
+                  />
+                ) : (
+                  <Textarea value={selectedOrder.email_body} className="h-[80vh] font-mono text-xs" readOnly />
+                )}
               </CardContent>
             </Card>
           </div>

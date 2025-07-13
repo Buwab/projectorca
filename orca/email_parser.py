@@ -18,19 +18,24 @@ PORT = int(os.getenv("IMAP_PORT"))
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-def extract_body(msg):
-    """Extract text or HTML body from email message"""
+def extract_bodies(msg):
+    """Extract both plain text and HTML body from email message"""
+    plain = None
+    html = None
     if msg.is_multipart():
         for part in msg.walk():
             ctype = part.get_content_type()
-            if ctype == "text/plain":
-                return part.get_payload(decode=True).decode()
-            elif ctype == "text/html":
-                html = part.get_payload(decode=True).decode()
-                soup = BeautifulSoup(html, "html.parser")
-                return soup.get_text()
+            if ctype == "text/plain" and plain is None:
+                plain = part.get_payload(decode=True).decode(errors="replace")
+            elif ctype == "text/html" and html is None:
+                html = part.get_payload(decode=True).decode(errors="replace")
     else:
-        return msg.get_payload(decode=True).decode()
+        ctype = msg.get_content_type()
+        if ctype == "text/plain":
+            plain = msg.get_payload(decode=True).decode(errors="replace")
+        elif ctype == "text/html":
+            html = msg.get_payload(decode=True).decode(errors="replace")
+    return plain, html
 
 def extract_sent_at(msg):
     """Extract the sent timestamp from the email's Date header"""
@@ -79,7 +84,7 @@ def process_emails():
             # Extract return_path (client) from Return-Path
             return_path_header = msg.get("Return-Path")
             _, return_path = email.utils.parseaddr(return_path_header) if return_path_header else (None, None)
-            body = extract_body(msg)
+            body, body_html = extract_bodies(msg)
 
             sent_at = extract_sent_at(msg)
 
@@ -94,6 +99,7 @@ def process_emails():
                 sender_email=sender_email,
                 sender_name=sender_name,
                 body=body,
+                body_html=body_html,
                 sent_at=sent_at,
                 return_path=return_path,
                 client_id=client_id,
