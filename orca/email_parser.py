@@ -78,6 +78,10 @@ def process_emails():
             subject = msg["subject"]
             sender = msg["from"]
             sender_name, sender_email = email.utils.parseaddr(sender)
+
+            # Extract return_path (client) from Return-Path
+            return_path_header = msg.get("Return-Path")
+            _, return_path = email.utils.parseaddr(return_path_header) if return_path_header else (None, None)
             bodies = extract_body(msg)
             plain_body = bodies.get("plain")
             html_body = bodies.get("html")
@@ -88,8 +92,8 @@ def process_emails():
                 sent_at = datetime.now().isoformat()
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
-            print(f"[process_emails] Saving email with HTML body: {html_body is not None}")
-            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body)
+            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path} with HTML body: {html_body is not None})")
+            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body, return_path=return_path)
 
             server.add_flags(uid, [b"\\Seen"])
 
