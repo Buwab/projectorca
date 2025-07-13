@@ -1,3 +1,4 @@
+
 # email_parser.py
 
 from imapclient import IMAPClient
@@ -7,7 +8,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from email.utils import parsedate_tz, mktime_tz
 import os
-from supabase_client import store_email
+from supabase_client import store_email, supabase
 
 # 🔧 Laad .env variabelen
 load_dotenv()
@@ -16,6 +17,24 @@ HOST = os.getenv("IMAP_SERVER")
 PORT = int(os.getenv("IMAP_PORT")) 
 USER = os.getenv("EMAIL_USER")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+def get_client_by_return_path(return_path):
+    """Look up client by return_path from the clients table"""
+    if not return_path:
+        return None
+    
+    try:
+        response = supabase.table("clients").select("id").eq("return_path", return_path).execute()
+        if response.data:
+            client_id = response.data[0]["id"]
+            print(f"✅ Client gevonden voor return_path '{return_path}': client_id = {client_id}")
+            return client_id
+        else:
+            print(f"⚠️ Geen client gevonden voor return_path: '{return_path}'")
+            return None
+    except Exception as e:
+        print(f"❌ Fout bij opzoeken client voor return_path '{return_path}': {e}")
+        return None
 
 def extract_body(msg):
     """Return the HTML body if available, otherwise fallback to plain text."""
@@ -82,6 +101,10 @@ def process_emails():
             # Extract return_path (client) from Return-Path
             return_path_header = msg.get("Return-Path")
             _, return_path = email.utils.parseaddr(return_path_header) if return_path_header else (None, None)
+            
+            # Look up client by return_path
+            client_id = get_client_by_return_path(return_path)
+            
             bodies = extract_body(msg)
             plain_body = bodies.get("plain")
             html_body = bodies.get("html")
@@ -92,8 +115,8 @@ def process_emails():
                 sent_at = datetime.now().isoformat()
                 print(f"📆 Fallback naar huidige tijd: {sent_at}")
 
-            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path} with HTML body: {html_body is not None})")
-            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body, return_path=return_path)
+            print(f"✉️ Verwerk e-mail: {subject} van {sender_email} verzonden op {sent_at} (return-path: {return_path}, client_id: {client_id} with HTML body: {html_body is not None})")
+            store_email(subject, sender_email, sender_name, plain_body, sent_at, email_body_html=html_body, return_path=return_path, client_id=client_id)
 
             server.add_flags(uid, [b"\\Seen"])
 
