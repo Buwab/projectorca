@@ -13,7 +13,7 @@ interface Order {
     sender_name: string;
     sender_email: string;
     email_body: string;
-  
+    email_body_html?: string; // <-- Add this line
     parsed_data: {
       products?: {
         name: string;
@@ -38,7 +38,7 @@ export default function Page() {
         // First get all emails
         const { data: ordersData, error: ordersError } = await supabase
           .from("emails")
-          .select("*")
+          .select("*, email_body_html") // <-- Ensure this field is fetched
           .order("created_at", { ascending: false });
 
         if (ordersError) throw ordersError;

@@ -94,7 +94,7 @@ def process_raw_emails():
     for mail in emails:
         try:
             email_id = mail["id"]
-            body = mail["email_body"]
+            body = mail.get("email_body_html") or mail.get("email_body")
             email_timestamp = mail.get("email_timestamp")
 
             print(f"\n🧠 Parsing mail: {mail['subject']}")
