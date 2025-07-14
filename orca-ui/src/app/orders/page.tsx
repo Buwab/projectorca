@@ -207,17 +207,34 @@ export default function Page() {
       try {
         // Use environment variable for backend URL, fallback to localhost for development
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://localhost:8000";
+        console.log("🔍 Fetching clients from:", backendUrl);
+        console.log("🌍 Environment variable NEXT_PUBLIC_BACKEND_BASE_URL:", process.env.NEXT_PUBLIC_BACKEND_BASE_URL);
+        
         const res = await fetch(`${backendUrl}/clients`);
+        console.log("📡 Response status:", res.status);
+        console.log("📡 Response ok:", res.ok);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const json = await res.json();
+        console.log("📦 Received data:", json);
         
         if (json.clients && Array.isArray(json.clients)) {
+          console.log("✅ Successfully loaded clients:", json.clients);
           setClients(json.clients);
         } else {
-          console.warn("No clients data received, using fallback");
+          console.warn("⚠️ No clients data received, using fallback");
           setClients([]); // Set empty array as fallback
         }
       } catch (error) {
-        console.error("Error fetching clients:", error);
+        console.error("❌ Error fetching clients:", error);
+        console.error("❌ Error details:", {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
         // Provide fallback clients data if API fails
         setClients([
           { id: "fallback", name: "Alle klanten (API niet beschikbaar)" }
