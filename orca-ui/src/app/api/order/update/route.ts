@@ -37,7 +37,6 @@ export async function POST(req: Request) {
 
     const incomingLines: IncomingLine[] = parsed_data.products;
 
-    // Stap 1: haal bestaande order_lines (alleen actuele versies)
     const { data: existingRaw, error: fetchError } = await supabase
       .from("order_lines")
       .select("*")
@@ -57,12 +56,11 @@ export async function POST(req: Request) {
 
     for (const incoming of incomingLines) {
       const matched = existingLines.find((existing) => {
-        if (
-          incoming.order_line_id && incoming.order_line_id === existing.id
-        ) {
+        // Eerst matchen op expliciete ID
+        if (incoming.order_line_id && incoming.order_line_id === existing.id) {
           return true;
         }
-        // Fallback: inhoudelijke match
+        // Daarna fallback: inhoudelijke match
         return (
           normalize(existing.product_name) === normalize(incoming.name) &&
           Number(existing.quantity) === Number(incoming.quantity) &&
@@ -74,7 +72,6 @@ export async function POST(req: Request) {
       if (matched) {
         matchedIds.add(matched.id);
 
-        // Check of inhoudelijk verschillend
         const isDifferent =
           normalize(matched.product_name) !== normalize(incoming.name) ||
           Number(matched.quantity) !== Number(incoming.quantity) ||
@@ -82,20 +79,23 @@ export async function POST(req: Request) {
           formatDate(matched.delivery_date) !== formatDate(incoming.delivery_date);
 
         if (isDifferent) {
-          await supabase.from("order_lines").update({
-            product_name: incoming.name,
-            quantity: incoming.quantity,
-            unit: incoming.unit,
-            delivery_date: incoming.delivery_date ?? null,
-            source: "user",
-            updated_at: new Date().toISOString(),
-          }).eq("id", matched.id);
+          await supabase
+            .from("order_lines")
+            .update({
+              product_name: incoming.name,
+              quantity: incoming.quantity,
+              unit: incoming.unit,
+              delivery_date: incoming.delivery_date ?? null,
+              source: "user",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", matched.id);
           updated++;
         } else {
           skipped++;
         }
       } else {
-        // Nieuw toevoegen
+        // Voeg alleen toe als er geen inhoudelijke match is
         await supabase.from("order_lines").insert({
           order_id,
           product_name: incoming.name,
@@ -110,14 +110,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // Stap 2: alles wat niet gematcht is, op inactive zetten
+    // Bestaande regels die niet zijn gematcht, worden gedeactiveerd
     const toDeactivate = existingLines.filter((line) => !matchedIds.has(line.id));
 
     for (const line of toDeactivate) {
-      await supabase.from("order_lines").update({
-        is_latest: false,
-        updated_at: new Date().toISOString(),
-      }).eq("id", line.id);
+      await supabase
+        .from("order_lines")
+        .update({
+          is_latest: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", line.id);
       deactivated++;
     }
 
