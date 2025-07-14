@@ -560,12 +560,11 @@ if (newOrders.length > 0) {
 
       console.log("📤 Verstuur naar Python /update-order:", body);
 
-      const res = await fetch("http://localhost:10000/update-order", {
+      const res = await fetch("/api/order/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const json = await res.json();
 
       if (res.ok) {

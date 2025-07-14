@@ -14,9 +14,13 @@ export async function POST(req: NextRequest) {
     messages: [
       {
         role: "system",
-        content:
-          "Je bent een JSON-editor voor bestellingen. Je krijgt bestaande parsed_data van een bestelling. Pas deze JSON aan volgens de instructie van de gebruiker. Geef alleen geldige JSON terug, zonder uitleg.",
-      },
+        content: `Je bent een JSON-editor voor bestellingen. Je krijgt bestaande parsed_data van een bestelling. Pas deze JSON aan volgens de instructie van de gebruiker. 
+
+        Geef alleen geldige JSON terug, zonder uitleg. 
+        - als er geen aparte delivery_date is, dan is de delivery_date gelijk aan de delivery_date van de andere producten
+        - Verwijder geen bestaande 'order_line_id'-waarden. 
+        - Voeg voor nieuwe producten altijd "order_line_id": null toe.
+        - Voeg dus nooit zelf een id zoals "new_id" toe.`,},
       {
         role: "user",
         content: `Bewerk deze JSON volgens de volgende prompt: "${prompt}".\n\nJSON:\n${JSON.stringify(parsed_data)}`,

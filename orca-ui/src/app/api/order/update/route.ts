@@ -6,13 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY!
 );
 
-// Define types
 interface IncomingLine {
   name: string;
   quantity: number;
   unit: string;
-  delivery_date?: string;
-  order_line_id?: string;
+  delivery_date?: string | null;
+  order_line_id?: string | null;
 }
 
 interface ExistingLine {
@@ -25,106 +24,109 @@ interface ExistingLine {
   order_id: string;
 }
 
+const normalize = (v: any) => (v === undefined ? null : v);
+const formatDate = (d: string | null | undefined) => d?.slice(0, 10) ?? null;
+
 export async function POST(req: Request) {
   try {
     const { order_id, parsed_data } = await req.json();
 
-    if (!order_id || !parsed_data) {
-      return NextResponse.json(
-        { error: "order_id of parsed_data ontbreekt" },
-        { status: 400 }
-      );
+    if (!order_id || !parsed_data?.products) {
+      return NextResponse.json({ error: "order_id of parsed_data ontbreekt" }, { status: 400 });
     }
 
-    // Stap 1: bestaande regels ophalen
-    const { data: existingLinesRaw, error: fetchError } = await supabase
+    const incomingLines: IncomingLine[] = parsed_data.products;
+
+    // Stap 1: haal bestaande order_lines (alleen actuele versies)
+    const { data: existingRaw, error: fetchError } = await supabase
       .from("order_lines")
       .select("*")
-      .eq("order_id", order_id);
+      .eq("order_id", order_id)
+      .eq("is_latest", true);
 
-    if (fetchError) {
-      throw fetchError;
-    }
+    if (fetchError) throw fetchError;
 
-    const existingLines: ExistingLine[] = existingLinesRaw || [];
-    const existingById = new Map(existingLines.map((line) => [line.id, line]));
+    const existingLines: ExistingLine[] = existingRaw || [];
 
-    // Stap 2: input mappen
-    const newLines: IncomingLine[] = parsed_data.products || [];
-    const incomingIds = new Set(
-      newLines.map((l) => l.order_line_id).filter(Boolean)
-    );
-
-    let updated = 0;
     let inserted = 0;
+    let updated = 0;
     let skipped = 0;
+    let deactivated = 0;
 
-    // Hulpfunctie voor robuuste vergelijkingen
-    const normalize = (v: unknown) => (v === undefined ? null : v);
+    const matchedIds = new Set<string>();
 
-    // Stap 3: update of insert
-    for (const line of newLines) {
-      const existingId = line.order_line_id;
-      const old = existingById.get(existingId ?? "");
+    for (const incoming of incomingLines) {
+      const matched = existingLines.find((existing) => {
+        if (
+          incoming.order_line_id && incoming.order_line_id === existing.id
+        ) {
+          return true;
+        }
+        // Fallback: inhoudelijke match
+        return (
+          normalize(existing.product_name) === normalize(incoming.name) &&
+          Number(existing.quantity) === Number(incoming.quantity) &&
+          normalize(existing.unit) === normalize(incoming.unit) &&
+          formatDate(existing.delivery_date) === formatDate(incoming.delivery_date)
+        );
+      });
 
-      if (existingId && old) {
+      if (matched) {
+        matchedIds.add(matched.id);
+
+        // Check of inhoudelijk verschillend
         const isDifferent =
-          normalize(old.product_name) !== normalize(line.name) ||
-          Number(old.quantity) !== Number(line.quantity) ||
-          normalize(old.unit) !== normalize(line.unit) ||
-          (old.delivery_date?.toString().slice(0, 10) ?? null) !==
-            (line.delivery_date?.toString().slice(0, 10) ?? null);
+          normalize(matched.product_name) !== normalize(incoming.name) ||
+          Number(matched.quantity) !== Number(incoming.quantity) ||
+          normalize(matched.unit) !== normalize(incoming.unit) ||
+          formatDate(matched.delivery_date) !== formatDate(incoming.delivery_date);
 
         if (isDifferent) {
-          await supabase
-            .from("order_lines")
-            .update({
-              product_name: line.name,
-              quantity: line.quantity,
-              unit: line.unit,
-              delivery_date: line.delivery_date,
-              source: "user",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingId);
-
+          await supabase.from("order_lines").update({
+            product_name: incoming.name,
+            quantity: incoming.quantity,
+            unit: incoming.unit,
+            delivery_date: incoming.delivery_date ?? null,
+            source: "user",
+            updated_at: new Date().toISOString(),
+          }).eq("id", matched.id);
           updated++;
         } else {
           skipped++;
         }
       } else {
+        // Nieuw toevoegen
         await supabase.from("order_lines").insert({
           order_id,
-          product_name: line.name,
-          quantity: line.quantity,
-          unit: line.unit,
-          delivery_date: line.delivery_date,
+          product_name: incoming.name,
+          quantity: incoming.quantity,
+          unit: incoming.unit,
+          delivery_date: incoming.delivery_date ?? null,
           source: "user",
           is_latest: true,
           is_exported: false,
         });
-
         inserted++;
       }
     }
 
-    // Stap 4: oude regels deactiveren
-    const toDeactivate = existingLines.filter(
-      (line) => !incomingIds.has(line.id)
-    );
+    // Stap 2: alles wat niet gematcht is, op inactive zetten
+    const toDeactivate = existingLines.filter((line) => !matchedIds.has(line.id));
 
     for (const line of toDeactivate) {
-      await supabase
-        .from("order_lines")
-        .update({ is_latest: false, updated_at: new Date().toISOString() })
-        .eq("id", line.id);
+      await supabase.from("order_lines").update({
+        is_latest: false,
+        updated_at: new Date().toISOString(),
+      }).eq("id", line.id);
+      deactivated++;
     }
 
     return NextResponse.json({
-      message: `✅ Verwerkt: ${inserted} nieuw, ${updated} aangepast, ${skipped} overgeslagen, ${toDeactivate.length} gedeactiveerd`,
+      message: `✅ Verwerkt: ${inserted} nieuw, ${updated} aangepast, ${skipped} ongewijzigd, ${deactivated} gedeactiveerd`
     });
-  } catch (error) {
-    console.error("❌ Fout in /api/order/update:", error);
-    return NextResponse.json({ error: "Interne fout" }, { status: 500 });
+
+  } catch (err) {
+    console.error("❌ Fout in update:", err);
+    return NextResponse.json({ error: "Interne serverfout" }, { status: 500 });
   }
 }
