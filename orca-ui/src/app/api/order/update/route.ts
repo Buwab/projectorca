@@ -24,7 +24,7 @@ interface ExistingLine {
   order_id: string;
 }
 
-const normalize = (v: any) => (v === undefined ? null : v);
+const normalize = (v: unknown): unknown => (v === undefined ? null : v);
 const formatDate = (d: string | null | undefined) => d?.slice(0, 10) ?? null;
 
 export async function POST(req: Request) {
