@@ -28,6 +28,7 @@ def import_structured_orders():
         try:
             email_id = email["id"]
             parsed = email["parsed_data"]
+            client_id = email.get("client_id")  # Get client_id from email
 
             if not parsed:
                 print(f"⚠️ Geen parsed_data bij e-mail: {email['subject']}")
@@ -42,10 +43,15 @@ def import_structured_orders():
                 "special_notes": parsed.get("special_notes"),
             }
 
+            # Add client_id to order if available
+            if client_id is not None:
+                order_structured_data["client_id"] = client_id
+                print(f"🔗 Linking order to client_id: {client_id}")
+
             response_structured = supabase.table("orders").insert(order_structured_data).execute()
             structured_id = response_structured.data[0]["id"]
 
-            print(f"✅ Order ingevoerd: {email['subject']} → order_id = {structured_id}")
+            print(f"✅ Order ingevoerd: {email['subject']} → order_id = {structured_id} (client_id: {client_id})")
 
             # ⬇️ Insert alle producten in order_lines
             products = parsed.get("products", [])
@@ -69,6 +75,7 @@ def import_structured_orders():
                 "subject": email["subject"],
                 "customer_name": parsed.get("customer_name"),
                 "order_date": parsed.get("order_date"),
+                "client_id": client_id,
             })
 
         except Exception as e:
