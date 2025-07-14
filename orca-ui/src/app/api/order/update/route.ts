@@ -6,12 +6,34 @@ const supabase = createClient(
   process.env.SUPABASE_KEY!
 );
 
+// Define types
+interface IncomingLine {
+  name: string;
+  quantity: number;
+  unit: string;
+  delivery_date?: string;
+  order_line_id?: string;
+}
+
+interface ExistingLine {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit: string;
+  delivery_date: string | null;
+  is_latest: boolean;
+  order_id: string;
+}
+
 export async function POST(req: Request) {
   try {
     const { order_id, parsed_data } = await req.json();
 
     if (!order_id || !parsed_data) {
-      return NextResponse.json({ error: "order_id of parsed_data ontbreekt" }, { status: 400 });
+      return NextResponse.json(
+        { error: "order_id of parsed_data ontbreekt" },
+        { status: 400 }
+      );
     }
 
     // Stap 1: bestaande regels ophalen
@@ -24,42 +46,47 @@ export async function POST(req: Request) {
       throw fetchError;
     }
 
-    const existingLines: any[] = existingLinesRaw || [];
+    const existingLines: ExistingLine[] = existingLinesRaw || [];
     const existingById = new Map(existingLines.map((line) => [line.id, line]));
 
     // Stap 2: input mappen
-    const newLines = parsed_data.products || [];
-    const incomingIds = new Set(newLines.map((l: any) => l.order_line_id).filter(Boolean));
+    const newLines: IncomingLine[] = parsed_data.products || [];
+    const incomingIds = new Set(
+      newLines.map((l) => l.order_line_id).filter(Boolean)
+    );
 
     let updated = 0;
     let inserted = 0;
     let skipped = 0;
 
     // Hulpfunctie voor robuuste vergelijking
-    const normalize = (v: any) => v === undefined ? null : v;
+    const normalize = (v: unknown) => (v === undefined ? null : v);
 
     // Stap 3: update of insert
     for (const line of newLines) {
       const existingId = line.order_line_id;
-      const old = existingById.get(existingId);
+      const old = existingById.get(existingId ?? "");
 
       if (existingId && old) {
         const isDifferent =
           normalize(old.product_name) !== normalize(line.name) ||
           Number(old.quantity) !== Number(line.quantity) ||
           normalize(old.unit) !== normalize(line.unit) ||
-          (old.delivery_date ? old.delivery_date.toString().slice(0, 10) : null) !==
-          (line.delivery_date ? line.delivery_date.toString().slice(0, 10) : null);
+          (old.delivery_date?.toString().slice(0, 10) ?? null) !==
+            (line.delivery_date?.toString().slice(0, 10) ?? null);
 
         if (isDifferent) {
-          await supabase.from("order_lines").update({
-            product_name: line.name,
-            quantity: line.quantity,
-            unit: line.unit,
-            delivery_date: line.delivery_date,
-            source: "user",
-            updated_at: new Date().toISOString(),
-          }).eq("id", existingId);
+          await supabase
+            .from("order_lines")
+            .update({
+              product_name: line.name,
+              quantity: line.quantity,
+              unit: line.unit,
+              delivery_date: line.delivery_date,
+              source: "user",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingId);
 
           updated++;
         } else {
@@ -82,7 +109,9 @@ export async function POST(req: Request) {
     }
 
     // Stap 4: oude regels deactiveren
-    const toDeactivate = existingLines.filter((line) => !incomingIds.has(line.id));
+    const toDeactivate = existingLines.filter(
+      (line) => !incomingIds.has(line.id)
+    );
 
     for (const line of toDeactivate) {
       await supabase
