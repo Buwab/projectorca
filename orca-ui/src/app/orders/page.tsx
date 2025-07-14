@@ -85,8 +85,6 @@ export default function Page() {
           allOrderLinesQuery = allOrderLinesQuery.in("order_id", orderIds);
         } else if (clientId) {
           // If we have a clientId but no orders, return empty results
-          const { data: exportedLines } = await exportedLinesQuery.eq("order_id", "non-existent");
-          const { data: allOrderLines } = await allOrderLinesQuery.eq("order_id", "non-existent");
           setOrders([]);
           return;
         }
