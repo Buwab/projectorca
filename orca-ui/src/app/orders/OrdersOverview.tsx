@@ -56,7 +56,21 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [promptResult, setPromptResult] = useState<string | null>(null);
   const [promptProducts, setPromptProducts] = useState<Product[] | null>(null); // ← Nieuw
     
-
+  const generateClipboardText = (products: Product[], customerName: string) => {
+    if (!products?.length) return "";
+    const items = products.map(
+      (p) => `${p.quantity}× ${p.unit} ${p.name}`
+    );
+    return `${customerName}: ${items.join(", ")}`;
+  };
+  
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("✔️ Gekopieerd naar klembord");
+    }).catch(() => {
+      alert("❌ Mislukt met kopiëren");
+    });
+  };
 
   useEffect(() => {
     setOrders(initialOrders);
@@ -180,7 +194,7 @@ if (newOrders.length > 0) {
     if (!order.parsed_data?.products) return order;
     
     const orderLinesForThisOrder = allOrderLinesMap.get(order.id) || [];
-    
+
     return {
       ...order,
       parsed_data: {
@@ -409,6 +423,23 @@ if (newOrders.length > 0) {
                   </TabsList>
 
                   <TabsContent value="lines">
+                  {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
+                    <div className="flex justify-end mb-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const text = generateClipboardText(
+                                selectedOrder.parsed_data.products!,
+                                selectedOrder.sender_name || selectedOrder.sender_email
+                              );
+                              copyToClipboard(text);
+                            }}
+                          >
+                            📋 Copy!
+                          </Button>
+                        </div>
+                      )}
 
                     {selectedOrder.parsed_data?.products ? (
                       Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
@@ -542,7 +573,18 @@ if (newOrders.length > 0) {
             ))}
           </div>
         ))}
-
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => {
+    const text = generateClipboardText(promptProducts, selectedOrder?.sender_name || "Klant");
+    navigator.clipboard.writeText(text);
+    alert("📋 Gekopieerd naar klembord!");
+  }}
+>
+  📋 Kopieer promptresultaat
+</Button>
+<br></br>
         {/* Update-knop */}
         <Button
   variant="secondary"
