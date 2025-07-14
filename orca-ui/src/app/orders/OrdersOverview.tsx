@@ -64,6 +64,18 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     return `${customerName}: ${items.join(", ")}`;
   };
   
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('nl-NL', {
+      weekday: 'long', // "maandag"
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       alert("✔️ Gekopieerd naar klembord");
@@ -410,36 +422,23 @@ if (newOrders.length > 0) {
           <div className="col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Gestructureerde Order</CardTitle>
-                <p className="text-xs text-muted-foreground">{selectedOrder.sender_name || selectedOrder.sender_email}</p>
+                <CardTitle className="text-base">Resultaat email orders</CardTitle>
+                <p className="text-xs text-muted-foreground">Klant: {selectedOrder.sender_name || selectedOrder.sender_email}</p>
+                <p className="text-xs text-muted-foreground">
+                Datum: {formatDate(selectedOrder.created_at)}
+                </p>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="lines" className="w-full">
                   <TabsList>
-                    <TabsTrigger value="lines">Producten per dag</TabsTrigger>
-                    <TabsTrigger value="parsed">JSON</TabsTrigger>
-                    <TabsTrigger value="feedback">Feedback</TabsTrigger>
-                    <TabsTrigger value="prompt">Test Prompt</TabsTrigger>
+                    <TabsTrigger value="lines">Producten</TabsTrigger>
+                   {/*  <TabsTrigger value="parsed">JSON</TabsTrigger>*/}
+                  {/* <TabsTrigger value="feedback">Feedback</TabsTrigger> */}
+                   {/*  <TabsTrigger value="prompt">Bestelling aanpassen</TabsTrigger>*/}
                   </TabsList>
 
                   <TabsContent value="lines">
-                  {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
-                    <div className="flex justify-end mb-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              const text = generateClipboardText(
-                                selectedOrder.parsed_data.products!,
-                                selectedOrder.sender_name || selectedOrder.sender_email
-                              );
-                              copyToClipboard(text);
-                            }}
-                          >
-                            📋 Copy!
-                          </Button>
-                        </div>
-                      )}
+
 
                     {selectedOrder.parsed_data?.products ? (
                       Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
@@ -454,7 +453,7 @@ if (newOrders.length > 0) {
                                 <div key={i} className="flex justify-between text-sm border-b py-1">
                                   <span>{p.name}</span>
                                   <span>
-                                    {p.quantity} {p.unit}
+                                    {p.quantity}x {p.unit}
                                     {p.delivery_date && (
                                       <Button 
                                         variant={p.is_exported ? "ghost" : "outline"} 
@@ -477,12 +476,31 @@ if (newOrders.length > 0) {
                               );
                             })}
                           </div>
+                          
                         )
+                        
                       )
 
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
+                    {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
+                    <div className="flex justify-end mb-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const text = generateClipboardText(
+                                selectedOrder.parsed_data.products!,
+                                selectedOrder.sender_name || selectedOrder.sender_email
+                              );
+                              copyToClipboard(text);
+                            }}
+                          >
+                            📋 Kopieer bestelling!
+                          </Button>
+                        </div>
+                      )}
                   </TabsContent>
 
                   <TabsContent value="parsed">
@@ -582,7 +600,7 @@ if (newOrders.length > 0) {
     alert("📋 Gekopieerd naar klembord!");
   }}
 >
-  📋 Kopieer promptresultaat
+  📋 Kopieer bestelling
 </Button>
 <br></br>
         {/* Update-knop */}
