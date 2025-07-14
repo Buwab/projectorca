@@ -55,6 +55,7 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [promptInput, setPromptInput] = useState("");
   const [promptResult, setPromptResult] = useState<string | null>(null);
   const [promptProducts, setPromptProducts] = useState<Product[] | null>(null); // ← Nieuw
+    
 
 
   useEffect(() => {
@@ -107,7 +108,11 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
     fetchOrderId();
   }, [selectedOrder]);
 
-
+useEffect(() => {
+  setPromptInput("");
+  setPromptResult(null);
+  setPromptProducts(null);
+}, [selectedOrder?.id]);
 
 
   const handleProcessAll = async () => {
@@ -564,7 +569,7 @@ if (newOrders.length > 0) {
       const json = await res.json();
 
       if (res.ok) {
-        alert("✅ Order succesvol geüpdatet via Python");
+        alert("✅ Order succesvol geüpdatet");
         console.log("✅ Response van Python:", json);
       } else {
         console.error("❌ Fout bij Python-update:", json);
