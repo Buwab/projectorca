@@ -205,7 +205,7 @@ export default function Page() {
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        // Use environment variable for backend URL, fallback to localhost for development
+        // Use environment variable for backend URL, fallback to localhost for dev
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "http://localhost:8000";
         console.log("🔍 Fetching clients from:", backendUrl);
         console.log("🌍 Environment variable NEXT_PUBLIC_BACKEND_BASE_URL:", process.env.NEXT_PUBLIC_BACKEND_BASE_URL);
