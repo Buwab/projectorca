@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     let inserted = 0;
     let skipped = 0;
 
-    // Hulpfunctie voor robuuste vergelijking
+    // Hulpfunctie voor robuuste vergelijkingen
     const normalize = (v: unknown) => (v === undefined ? null : v);
 
     // Stap 3: update of insert
