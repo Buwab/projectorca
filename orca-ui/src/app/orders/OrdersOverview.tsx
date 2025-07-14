@@ -428,7 +428,8 @@ if (newOrders.length > 0) {
                                   <span>{p.name}</span>
                                   <span>
                                     {p.quantity} {p.unit}
-                                    {p.delivery_date && (
+                                    {/* TRELLO PUSH BUTTONS - TEMPORARILY HIDDEN */}
+                                    {/* {p.delivery_date && (
                                       <Button 
                                         variant={p.is_exported ? "ghost" : "outline"} 
                                         size="icon"
@@ -444,7 +445,7 @@ if (newOrders.length > 0) {
                                           "📤"
                                         )}
                                       </Button>
-                                    )}
+                                    )} */}
                                   </span>
                                 </div>
                               );
