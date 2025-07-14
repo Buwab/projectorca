@@ -10,6 +10,7 @@ from email_parser import run as run_email_parser
 from llm_parser import run as run_llm_parser
 from import_structured_orders import run as run_import_orders
 from supabase_client import supabase
+from get_clients import get_clients
 
 # 🔧 Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -93,12 +94,5 @@ def send_to_trello(request: SendOrderRequest):
         )
 
 @app.get("/clients")
-def get_clients():
-    try:
-        response = supabase.table("clients").select("id, name").is_("deleted_at", None).execute()
-        if response.data is None:
-            return JSONResponse(status_code=404, content={"status": "error", "message": "No clients found"})
-        return {"clients": response.data}
-    except Exception as e:
-        logger.error(f"❌ Error fetching clients: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+def clients_endpoint():
+    return get_clients()
