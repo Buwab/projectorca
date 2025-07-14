@@ -41,7 +41,22 @@ interface Order {
   };
 }
 
-export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
+interface Client {
+  id: string;
+  name: string;
+}
+
+export default function OrdersOverview({ 
+  orders: initialOrders, 
+  clients, 
+  selectedClient, 
+  setSelectedClient 
+}: { 
+  orders: Order[], 
+  clients: Client[], 
+  selectedClient: Client | null, 
+  setSelectedClient: (client: Client | null) => void 
+}) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [feedbackText, setFeedbackText] = useState<string>("");
@@ -56,6 +71,11 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
+
+  // Clear selected order when client changes
+  useEffect(() => {
+    setSelectedOrder(null);
+  }, [selectedClient]);
 
   useEffect(() => {
     if (selectedOrder) {
@@ -289,6 +309,26 @@ if (newOrders.length > 0) {
 
   return (
     <div className="p-4">
+      {/* Full-width client selection bar at the top */}
+      <div className="bg-gray-50 p-3 rounded-lg mb-4 flex justify-end">
+        <div>
+          <label className="mr-2 text-sm font-medium">Selecteer klant:</label>
+          <select
+            value={selectedClient ? selectedClient.id : ''}
+            onChange={e => {
+              const client = clients.find(c => c.id === e.target.value) || null;
+              setSelectedClient(client);
+            }}
+            className="border rounded px-2 py-1 text-sm font-medium"
+          >
+            <option value="">Toon alles</option>
+            {clients.map(client => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-semibold">Orders</h1>
         <div className="flex flex-col items-end">

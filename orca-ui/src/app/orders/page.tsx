@@ -28,37 +28,71 @@ interface Order {
   }
   
 
+interface Client {
+  id: string;
+  name: string;
+}
 
 export default function Page() {
     const [orders, setOrders] = useState<Order[]>([])
+    const [clients, setClients] = useState<Client[]>([])
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchOrders = async (clientId?: string) => {
       try {
-        // First get all emails
-        const { data: ordersData, error: ordersError } = await supabase
+        // First get emails - filter by client_id if specified
+        let emailsQuery = supabase
           .from("emails")
-          .select("*, email_body_html") // <-- Ensure this field is fetched
+          .select("*, email_body_html")
           .order("created_at", { ascending: false });
+        
+        if (clientId) {
+          emailsQuery = emailsQuery.eq("client_id", clientId);
+        }
+
+        const { data: ordersData, error: ordersError } = await emailsQuery;
 
         if (ordersError) throw ordersError;
         if (!ordersData) return;
 
-        // Get all exported order lines with more details for debugging
-        const { data: exportedLines } = await supabase
+        // Get orders - filter by client_id if specified
+        let ordersQuery = supabase
+          .from("orders")
+          .select("id, email_id");
+        
+        if (clientId) {
+          ordersQuery = ordersQuery.eq("client_id", clientId);
+        }
+
+        const { data: structuredOrders } = await ordersQuery;
+
+        // Get order lines - these will be automatically filtered by the orders above
+        const orderIds = structuredOrders?.map(order => order.id) || [];
+        
+        let exportedLinesQuery = supabase
           .from("order_lines")
           .select("id, order_id, product_name, quantity, unit, is_exported")
           .eq("is_exported", true);
 
-        // Get ALL order lines (not just exported ones) to enrich the JSON with IDs
-        const { data: allOrderLines } = await supabase
+        let allOrderLinesQuery = supabase
           .from("order_lines")
           .select("id, order_id, product_name, quantity, unit, is_exported");
 
-        // Get the mapping of email_id to order_id
-        const { data: structuredOrders } = await supabase
-          .from("orders")
-          .select("id, email_id");
+        // Filter order lines by order_id if we have specific orders
+        if (orderIds.length > 0) {
+          exportedLinesQuery = exportedLinesQuery.in("order_id", orderIds);
+          allOrderLinesQuery = allOrderLinesQuery.in("order_id", orderIds);
+        } else if (clientId) {
+          // If we have a clientId but no orders, return empty results
+          const { data: exportedLines } = await exportedLinesQuery.eq("order_id", "non-existent");
+          const { data: allOrderLines } = await allOrderLinesQuery.eq("order_id", "non-existent");
+          setOrders([]);
+          return;
+        }
+
+        const { data: exportedLines } = await exportedLinesQuery;
+        const { data: allOrderLines } = await allOrderLinesQuery;
 
         // Create a map of structured order IDs to their exported products
         const exportedProducts = new Map();
@@ -167,8 +201,21 @@ export default function Page() {
       }
     };
 
-    fetchOrders();
+    fetchOrders(selectedClient?.id);
+  }, [selectedClient]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/clients");
+        const json = await res.json();
+        if (json.clients) setClients(json.clients);
+      } catch (error) {
+        console.error("Error fetching clients:", error);
+      }
+    };
+    fetchClients();
   }, []);
 
-  return <OrdersOverview orders={orders} />
+  return <OrdersOverview orders={orders} clients={clients} selectedClient={selectedClient} setSelectedClient={setSelectedClient} />
 }
