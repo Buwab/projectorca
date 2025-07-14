@@ -28,7 +28,7 @@ interface Product {
 }
 
 interface Order {
-  id: string;
+  id: string; // ← eigenlijk email_id
   created_at: string;
   subject: string;
   sender_name: string;
@@ -52,6 +52,10 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const ordersPerPage = 7;
   const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
+  const [promptInput, setPromptInput] = useState("");
+  const [promptResult, setPromptResult] = useState<string | null>(null);
+  const [promptProducts, setPromptProducts] = useState<Product[] | null>(null); // ← Nieuw
+
 
   useEffect(() => {
     setOrders(initialOrders);
@@ -79,6 +83,32 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
       return () => clearTimeout(timeout);
     }
   }, [newlyImportedOrderIds]);
+
+  const [linkedOrderId, setLinkedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchOrderId = async () => {
+      if (selectedOrder?.id) {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("email_id", selectedOrder.id)
+          .single();
+
+        if (!error && data?.id) {
+          setLinkedOrderId(data.id);
+        } else {
+          console.warn("⚠️ Geen bijbehorende order gevonden bij email_id:", selectedOrder.id);
+          setLinkedOrderId(null);
+        }
+      }
+    };
+
+    fetchOrderId();
+  }, [selectedOrder]);
+
+
+
 
   const handleProcessAll = async () => {
     setProcessing(true);
@@ -370,6 +400,7 @@ if (newOrders.length > 0) {
                     <TabsTrigger value="lines">Producten per dag</TabsTrigger>
                     <TabsTrigger value="parsed">JSON</TabsTrigger>
                     <TabsTrigger value="feedback">Feedback</TabsTrigger>
+                    <TabsTrigger value="prompt">Test Prompt</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="lines">
@@ -441,6 +472,146 @@ if (newOrders.length > 0) {
                       </div>
                     </form>
                   </TabsContent>
+                  <TabsContent value="prompt">
+  <form
+    onSubmit={async (e) => {
+      e.preventDefault();
+      if (!selectedOrder) return;
+
+      const promptText = promptInput.trim();
+      if (!promptText) return alert("Prompt mag niet leeg zijn");
+
+      setPromptResult("⏳ Versturen...");
+
+      try {
+        const res = await fetch("/api/test-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: promptText,
+            email_body: selectedOrder.email_body,
+            parsed_data: selectedOrder.parsed_data,
+          }),
+        });
+
+        const json = await res.json();
+        console.log("✅ API response:", json);
+        setPromptResult(json.result || "");
+
+        try {
+          const parsed = JSON.parse(json.result || "{}");
+          if (parsed.products) {
+            setPromptProducts(parsed.products);
+          } else {
+            setPromptProducts(null);
+          }
+        } catch {
+          setPromptProducts(null);
+        }
+      } catch (err) {
+        console.error("❌ API error:", err);
+        setPromptResult("❌ Er ging iets mis bij het uitvoeren van de prompt.");
+      }
+    }}
+    className="space-y-4"
+  >
+    <Textarea
+      value={promptInput}
+      onChange={(e) => setPromptInput(e.target.value)}
+      placeholder="Voeg hier extra prompt toe (bijv: 'Zet leverdatum op dinsdag')"
+      className="h-32 font-mono text-xs"
+    />
+    <Button type="submit">Voer prompt uit</Button>
+
+    {/* Weergave van AI-gegenereerde producten per dag */}
+    {promptProducts && promptProducts.length > 0 && (
+      <div className="space-y-3 mt-4">
+        {Object.entries(groupedProductsByDate(promptProducts)).map(([date, products]) => (
+          <div key={date}>
+            <h4 className="font-semibold text-sm mb-1">🧠 AI: {date}</h4>
+            {products.map((p, i) => (
+              <div key={i} className="flex justify-between text-sm border-b py-1">
+                <span>{p.name}</span>
+                <span>{p.quantity} {p.unit}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {/* Update-knop */}
+        <Button
+  variant="secondary"
+  onClick={async () => {
+    if (!selectedOrder?.id || !promptResult) return;
+
+    try {
+      const parsed = JSON.parse(promptResult);
+      parsed.order_id = linkedOrderId ?? selectedOrder.id;// ✅ Voeg order_id toe aan parsed_data
+
+      const body = {
+        order_id: linkedOrderId,
+        parsed_data: parsed,
+      };
+
+      console.log("📤 Verstuur naar Python /update-order:", body);
+
+      const res = await fetch("http://localhost:10000/update-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        alert("✅ Order succesvol geüpdatet via Python");
+        console.log("✅ Response van Python:", json);
+      } else {
+        console.error("❌ Fout bij Python-update:", json);
+        alert(`❌ Python kon order niet updaten (${res.status}): ${json.message}`);
+      }
+    } catch (err) {
+      console.error("❌ Netwerkfout naar Python:", err);
+      alert("❌ Kon geen verbinding maken met de Python-backend");
+    }
+  }}
+>
+  Update Order
+</Button>
+
+
+{/* JSON preview */}
+<div className="mt-4 space-y-2">
+  <h4 className="text-sm font-semibold">🔍 Volledige JSON (inclusief order_id)</h4>
+  <pre className="bg-gray-100 border border-gray-300 rounded p-4 text-xs font-mono whitespace-pre-wrap overflow-auto">
+    {(() => {
+      try {
+        const parsed = JSON.parse(promptResult || "{}");
+        if (selectedOrder?.id) {
+          parsed.order_id = linkedOrderId ?? selectedOrder.id; // ✅ ook zichtbaar in de preview
+        }
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return promptResult;
+      }
+    })()}
+  </pre>
+</div>
+
+      </div>
+    )}
+
+    {/* Fallback bij geen producten of JSON error */}
+    {!promptProducts && promptResult && typeof promptResult === "string" && (
+      <Textarea
+        value={promptResult}
+        readOnly
+        className="h-64 font-mono text-xs mt-4 border border-red-300"
+      />
+    )}
+  </form>
+</TabsContent>
+
                 </Tabs>
               </CardContent>
             </Card>
