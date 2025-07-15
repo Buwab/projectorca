@@ -59,9 +59,8 @@ export default function OrdersOverview({
   setSelectedClient: (client: Client | null) => void 
 }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [feedbackText, setFeedbackText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
