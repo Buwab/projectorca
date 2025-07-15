@@ -130,38 +130,38 @@ export default function OrdersOverview({
     }
   }, [newlyImportedOrderIds]);
 
-const handleSetFirstTimeRight = async (isRight: boolean) => {
-  if (!selectedOrder) return;
-  setSubmitting(true);
-  try {
-    // Update in Supabase
-    await supabase
-      .from("emails")
-      .update({ first_time_right: isRight })
-      .eq("id", selectedOrder.id);
+// const handleSetFirstTimeRight = async (isRight: boolean) => {
+//   if (!selectedOrder) return;
+//   setSubmitting(true);
+//   try {
+//     // Update in Supabase
+//     await supabase
+//       .from("emails")
+//       .update({ first_time_right: isRight })
+//       .eq("id", selectedOrder.id);
 
-    // ✅ Update in state
-    setOrders((prevOrders) =>
-      prevOrders.map((order) =>
-        order.id === selectedOrder.id
-          ? { ...order, first_time_right: isRight }
-          : order
-      )
-    );
+//     // ✅ Update in state
+//     setOrders((prevOrders) =>
+//       prevOrders.map((order) =>
+//         order.id === selectedOrder.id
+//           ? { ...order, first_time_right: isRight }
+//           : order
+//       )
+//     );
 
-    // ✅ Update geselecteerde order ook los
-    setSelectedOrder((prev) =>
-      prev ? { ...prev, first_time_right: isRight } : null
-    );
+//     // ✅ Update geselecteerde order ook los
+//     setSelectedOrder((prev) =>
+//       prev ? { ...prev, first_time_right: isRight } : null
+//     );
 
-    alert("✔ Eerste keer goed uitgelezen status bijgewerkt");
-  } catch (err) {
-    console.error("❌ Fout bij bijwerken:", err);
-    alert("❌ Fout bij bijwerken status");
-  } finally {
-    setSubmitting(false);
-  }
-};
+//     alert("✔ Eerste keer goed uitgelezen status bijgewerkt");
+//   } catch (err) {
+//     console.error("❌ Fout bij bijwerken:", err);
+//     alert("❌ Fout bij bijwerken status");
+//   } finally {
+//     setSubmitting(false);
+//   }
+// };
 
   const handleProcessAll = async () => {
     setProcessing(true);
