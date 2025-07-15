@@ -14,6 +14,7 @@ interface Order {
     sender_email: string;
     email_body: string;
     email_body_html?: string; // <-- Add this line
+    first_time_right: boolean | null;
     parsed_data: {
       products?: {
         name: string;

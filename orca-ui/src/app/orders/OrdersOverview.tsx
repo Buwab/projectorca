@@ -33,6 +33,7 @@ interface Order {
   subject: string;
   sender_name: string;
   sender_email: string;
+  first_time_right: boolean | null;
   email_body: string;
   email_body_html?: string; // <-- Add this line
   parsed_data: {
@@ -68,6 +69,34 @@ export default function OrdersOverview({
   // const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set()); // COMMENTED OUT - used for Trello buttons
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
 
+  const generateClipboardText = (products: Product[], customerName: string) => {
+    if (!products?.length) return "";
+    const items = products.map(
+      (p) => `${p.quantity}× ${p.unit} ${p.name}`
+    );
+    return `${customerName}: ${items.join(", ")}`;
+  };
+  
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('nl-NL', {
+      weekday: 'long', // "maandag"
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("✔️ Gekopieerd naar klembord");
+    }).catch(() => {
+      alert("❌ Mislukt met kopiëren");
+    });
+  };
+
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
@@ -100,6 +129,39 @@ export default function OrdersOverview({
     }
   }, [newlyImportedOrderIds]);
 
+const handleSetFirstTimeRight = async (isRight: boolean) => {
+  if (!selectedOrder) return;
+  setSubmitting(true);
+  try {
+    // Update in Supabase
+    await supabase
+      .from("orders")
+      .update({ first_time_right: isRight })
+      .eq("id", selectedOrder.id);
+
+    // ✅ Update in state
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === selectedOrder.id
+          ? { ...order, first_time_right: isRight }
+          : order
+      )
+    );
+
+    // ✅ Update geselecteerde order ook los
+    setSelectedOrder((prev) =>
+      prev ? { ...prev, first_time_right: isRight } : null
+    );
+
+    alert("✔ Eerste keer goed uitgelezen status bijgewerkt");
+  } catch (err) {
+    console.error("❌ Fout bij bijwerken:", err);
+    alert("❌ Fout bij bijwerken status");
+  } finally {
+    setSubmitting(false);
+  }
+};
+
   const handleProcessAll = async () => {
     setProcessing(true);
     setProcessResult(null);
@@ -128,6 +190,8 @@ if (newOrders.length > 0) {
 
   if (ordersError) throw ordersError;
   if (!ordersData) return;
+    
+
 
   // Get ALL order lines to enrich the JSON with IDs
   const { data: allOrderLines } = await supabase
@@ -272,27 +336,6 @@ if (newOrders.length > 0) {
     }
   }; */
 
-  const handleFeedbackSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-    setSubmitting(true);
-    try {
-      const corrected = feedbackText ? JSON.parse(feedbackText) : null;
-      await supabase.from("order_feedback").insert({
-        order_id: selectedOrder.id,
-        original_data: selectedOrder.parsed_data,
-        corrected_data: corrected,
-        feedback_text: feedbackText,
-      });
-      alert("✔ Feedback opgeslagen");
-      setFeedbackText("");
-    } catch {
-      alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
     for (const p of products) {
@@ -409,8 +452,8 @@ if (newOrders.length > 0) {
                 <Tabs defaultValue="lines" className="w-full">
                   <TabsList>
                     <TabsTrigger value="lines">Producten per dag</TabsTrigger>
-                    <TabsTrigger value="parsed">JSON</TabsTrigger>
-                    <TabsTrigger value="feedback">Feedback</TabsTrigger>
+                  {/*   <TabsTrigger value="parsed">JSON</TabsTrigger>*/}
+                  {/*   <TabsTrigger value="feedback">Feedback</TabsTrigger>*/}
                   </TabsList>
 
                   <TabsContent value="lines">
@@ -458,6 +501,47 @@ if (newOrders.length > 0) {
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
+                    <br></br>
+                  {selectedOrder.id && selectedOrder.first_time_right === null && (
+  <div className="flex items-center justify-between mt-4 p-3 border rounded-md bg-muted">
+    <span className="text-sm font-medium">📩 Was deze e-mail in één keer goed uitgelezen?</span>
+    <div className="space-x-2">
+      <Button 
+        variant="outline"
+        size="sm"
+        onClick={() => handleSetFirstTimeRight(true)}
+      >
+        ✅ Ja
+      </Button>
+      <Button 
+        variant="outline"
+        size="sm"
+        onClick={() => handleSetFirstTimeRight(false)}
+      >
+        ❌ Nee
+      </Button>
+    </div>
+  </div>
+)}
+
+<br></br>
+                    {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
+                    <div className="flex justify-end mb-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const text = generateClipboardText(
+                                selectedOrder.parsed_data.products!,
+                                selectedOrder.sender_name || selectedOrder.sender_email
+                              );
+                              copyToClipboard(text);
+                            }}
+                          >
+                            📋 Kopieer bestelling!
+                          </Button>
+                        </div>
+                      )}
                   </TabsContent>
 
                   <TabsContent value="parsed">
@@ -468,21 +552,7 @@ if (newOrders.length > 0) {
                     />
                   </TabsContent>
 
-                  <TabsContent value="feedback">
-                    <form className="space-y-2" onSubmit={handleFeedbackSubmit}>
-                      <Textarea
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        placeholder="Correctie op parsed_data als JSON... (optioneel)"
-                        className="h-40 font-mono text-xs"
-                      />
-                      <div className="flex gap-2">
-                        <Button type="submit" disabled={submitting}>
-                          {submitting ? "Versturen..." : "Verbeter model"}
-                        </Button>
-                      </div>
-                    </form>
-                  </TabsContent>
+
                 </Tabs>
               </CardContent>
             </Card>
