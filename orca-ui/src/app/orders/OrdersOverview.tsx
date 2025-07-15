@@ -165,6 +165,7 @@ if (newEmails.length > 0) {
   const { data: emailsData, error: emailsError } = await supabase
     .from("emails")
     .select("*")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (emailsError) throw emailsError;
@@ -175,12 +176,14 @@ if (newEmails.length > 0) {
   // Get ALL order lines to enrich the JSON with IDs
   const { data: allOrderLines } = await supabase
     .from("order_lines")
-    .select("id, order_id, product_name, quantity, unit, is_exported");
+    .select("id, order_id, product_name, quantity, unit, is_exported")
+    .is("deleted_at", null);
 
   // Get the mapping of email_id to order_id
   const { data: structuredEmails } = await supabase
     .from("orders")
-    .select("id, email_id, customer_name");
+    .select("id, email_id, customer_name")
+    .is("deleted_at", null);
 
 
   // Create a map of all order lines for enriching JSON with IDs

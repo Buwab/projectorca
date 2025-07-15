@@ -24,7 +24,7 @@ def get_client_by_return_path(return_path):
         return None
     
     try:
-        response = supabase.table("clients").select("id").eq("return_path", return_path).execute()
+        response = supabase.table("clients").select("id").eq("return_path", return_path).is_("deleted_at", None).execute()
         if response.data:
             client_id = response.data[0]["id"]
             print(f"✅ Client gevonden voor return_path '{return_path}': client_id = {client_id}")
