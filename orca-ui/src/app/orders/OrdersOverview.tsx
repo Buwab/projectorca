@@ -209,7 +209,7 @@ if (newEmails.length > 0) {
   const updatedEmails = emailsData.map(email => {
     if (!email.parsed_data?.products) return email;
     
-    const orderLinesForThisEmail = allOrderLinesMap.get(email.id) || [];
+    const orderLinesForThisEmail = allOrderLinesMap.get(email.id)?.lines || [];
     
     return {
       ...email,
