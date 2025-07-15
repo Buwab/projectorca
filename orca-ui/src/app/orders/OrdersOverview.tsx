@@ -59,14 +59,15 @@ export default function OrdersOverview({
   setSelectedClient: (client: Client | null) => void 
 }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [submitting, setSubmitting] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 7;
   // const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set()); // COMMENTED OUT - used for Trello buttons
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
+  const [feedbackText, setFeedbackText] = useState<string>("");
 
   const generateClipboardText = (products: Product[], customerName: string) => {
     if (!products?.length) return "";
@@ -336,6 +337,27 @@ if (newOrders.length > 0) {
     }
   }; */
 
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder) return;
+    setSubmitting(true);
+    try {
+      const corrected = feedbackText ? JSON.parse(feedbackText) : null;
+      await supabase.from("order_feedback").insert({
+        order_id: selectedOrder.id,
+        original_data: selectedOrder.parsed_data,
+        corrected_data: corrected,
+        feedback_text: feedbackText,
+      });
+      alert("✔ Feedback opgeslagen");
+      setFeedbackText("");
+    } catch {
+      alert("❌ Feedback opslaan mislukt. Is je JSON geldig?");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const groupedProductsByDate = (products: Product[]) => {
     const grouped: Record<string, Product[]> = {};
     for (const p of products) {
@@ -555,6 +577,21 @@ if (newOrders.length > 0) {
                     />
                   </TabsContent>
 
+                  <TabsContent value="feedback">
+                    <form className="space-y-2" onSubmit={handleFeedbackSubmit}>
+                      <Textarea
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="Correctie op parsed_data als JSON... (optioneel)"
+                        className="h-40 font-mono text-xs"
+                      />
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={submitting}>
+                          {submitting ? "Versturen..." : "Verbeter model"}
+                        </Button>
+                      </div>
+                    </form>
+                  </TabsContent>
 
                 </Tabs>
               </CardContent>
