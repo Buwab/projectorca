@@ -136,7 +136,7 @@ const handleSetFirstTimeRight = async (isRight: boolean) => {
   try {
     // Update in Supabase
     await supabase
-      .from("orders")
+      .from("emails")
       .update({ first_time_right: isRight })
       .eq("id", selectedOrder.id);
 
