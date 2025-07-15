@@ -526,7 +526,7 @@ if (newOrders.length > 0) {
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
-                    <br></br>
+                    {/* <br></br>
                   {selectedOrder.id && selectedOrder.first_time_right === null && (
   <div className="flex items-center justify-between mt-4 p-3 border rounded-md bg-muted">
     <span className="text-sm font-medium">📩 Was deze e-mail in één keer goed uitgelezen?</span>
@@ -547,7 +547,7 @@ if (newOrders.length > 0) {
       </Button>
     </div>
   </div>
-)}
+)} */}
 
 <br></br>
                     {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
