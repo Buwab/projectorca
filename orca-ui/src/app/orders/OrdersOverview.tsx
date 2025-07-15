@@ -29,6 +29,13 @@ interface Product {
 
 interface Order {
   id: string;
+  email_id: string;
+  customer_name: string;
+  // add other fields from orders table if needed
+}
+
+interface Email {
+  id: string;
   created_at: string;
   subject: string;
   sender_name: string;
@@ -36,10 +43,12 @@ interface Order {
   first_time_right: boolean | null;
   email_body: string;
   email_body_html?: string; // <-- Add this line
+  customer_name?: string; // <-- Add this line
   parsed_data: {
     products?: Product[];
     [key: string]: unknown;
   };
+  order?: Order;
 }
 
 interface Client {
@@ -48,25 +57,25 @@ interface Client {
 }
 
 export default function OrdersOverview({ 
-  orders: initialOrders, 
+  emails: initialEmails, 
   clients, 
   selectedClient, 
   setSelectedClient 
 }: { 
-  orders: Order[], 
+  emails: Email[], 
   clients: Client[], 
   selectedClient: Client | null, 
   setSelectedClient: (client: Client | null) => void 
 }) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [emails, setEmails] = useState<Email[]>(initialEmails);
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 7;
+  const emailsPerPage = 7;
   // const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set()); // COMMENTED OUT - used for Trello buttons
-  const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
+  const [newlyImportedEmailIds, setNewlyImportedEmailIds] = useState<Set<string>>(new Set());
   const [feedbackText, setFeedbackText] = useState<string>("");
 
   const generateClipboardText = (products: Product[], customerName: string) => {
@@ -99,36 +108,36 @@ export default function OrdersOverview({
 
 
   useEffect(() => {
-    setOrders(initialOrders);
-  }, [initialOrders]);
+    setEmails(initialEmails);
+  }, [initialEmails]);
 
-  // Clear selected order when client changes
+  // Clear selected email when client changes
   useEffect(() => {
-    setSelectedOrder(null);
+    setSelectedEmail(null);
   }, [selectedClient]);
 
   useEffect(() => {
-    if (selectedOrder) {
-      const updated = orders.find((o) => o.id === selectedOrder.id);
+    if (selectedEmail) {
+      const updated = emails.find((e) => e.id === selectedEmail.id);
       if (updated) {
-        // Deep comparison to check if the order data has actually changed
-        const hasChanged = JSON.stringify(updated) !== JSON.stringify(selectedOrder);
+        // Deep comparison to check if the email data has actually changed
+        const hasChanged = JSON.stringify(updated) !== JSON.stringify(selectedEmail);
         if (hasChanged) {
-          setSelectedOrder(updated);
+          setSelectedEmail(updated);
         }
       }
     }
-  }, [orders, selectedOrder]);
+  }, [emails, selectedEmail]);
 
   useEffect(() => {
-    if (newlyImportedOrderIds.size > 0) {
+    if (newlyImportedEmailIds.size > 0) {
       const timeout = setTimeout(() => {
-        setNewlyImportedOrderIds(new Set());
+        setNewlyImportedEmailIds(new Set());
       }, 10000); // 10 seconden
   
       return () => clearTimeout(timeout);
     }
-  }, [newlyImportedOrderIds]);
+  }, [newlyImportedEmailIds]);
 
 
 
@@ -149,17 +158,17 @@ export default function OrdersOverview({
       setProcessResult(`📥 ${json.email?.emails_found ?? "?"} mails · 🧠 ${json.llm?.parsed ?? "?"} parsed · ✅ ${json.import?.orders_imported ?? "?"} orders`);
   
       // ✅ Als er orders zijn geïmporteerd, update de lijst
-const newOrders: { id: string }[] = json.import?.new_orders ?? [];
+const newEmails: { id: string }[] = json.import?.new_orders ?? [];
 
-if (newOrders.length > 0) {
+if (newEmails.length > 0) {
   // Get all emails
-  const { data: ordersData, error: ordersError } = await supabase
+  const { data: emailsData, error: emailsError } = await supabase
     .from("emails")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (ordersError) throw ordersError;
-  if (!ordersData) return;
+  if (emailsError) throw emailsError;
+  if (!emailsData) return;
     
 
 
@@ -169,42 +178,44 @@ if (newOrders.length > 0) {
     .select("id, order_id, product_name, quantity, unit, is_exported");
 
   // Get the mapping of email_id to order_id
-  const { data: structuredOrders } = await supabase
+  const { data: structuredEmails } = await supabase
     .from("orders")
-    .select("id, email_id");
+    .select("id, email_id, customer_name");
+
 
   // Create a map of all order lines for enriching JSON with IDs
   const allOrderLinesMap = new Map();
   
-  if (allOrderLines && structuredOrders) {
+  if (allOrderLines && structuredEmails) {
     // Create a map of structured_id to email_id for easier lookup
     const structuredToEmailMap = new Map(
-      structuredOrders.map(so => [so.id, so.email_id])
+      structuredEmails.map(so => [so.id, { email_id: so.email_id, customer_name: so.customer_name }])
     );
-
+    
     // Group ALL order lines by email_id for enriching JSON
-    allOrderLines.forEach(line => {
-      const emailId = structuredToEmailMap.get(line.order_id);
-      if (emailId) {
-        if (!allOrderLinesMap.has(emailId)) {
-          allOrderLinesMap.set(emailId, []);
+        allOrderLines.forEach(line => {
+      const mapping = structuredToEmailMap.get(line.order_id);
+      if (mapping) {
+        const { email_id, customer_name } = mapping;
+        if (!allOrderLinesMap.has(email_id)) {
+          allOrderLinesMap.set(email_id, { lines: [], customer_name });
         }
-        allOrderLinesMap.get(emailId).push(line);
+        allOrderLinesMap.get(email_id).lines.push(line);
       }
     });
   }
 
   // Enrich the orders data with order_line_id from the order_lines table
-  const updatedOrders = ordersData.map(order => {
-    if (!order.parsed_data?.products) return order;
+  const updatedEmails = emailsData.map(email => {
+    if (!email.parsed_data?.products) return email;
     
-    const orderLinesForThisOrder = allOrderLinesMap.get(order.id) || [];
+    const orderLinesForThisEmail = allOrderLinesMap.get(email.id) || [];
     
     return {
-      ...order,
+      ...email,
       parsed_data: {
-        ...order.parsed_data,
-        products: order.parsed_data.products.map((product: {
+        ...email.parsed_data,
+        products: email.parsed_data.products.map((product: {
           name: string;
           quantity: number;
           unit: string;
@@ -213,7 +224,7 @@ if (newOrders.length > 0) {
           order_line_id?: string | null;
         }) => {
           // Try to find the matching order line for this product
-          const matchingOrderLine = orderLinesForThisOrder.find((line: {
+          const matchingOrderLine = orderLinesForThisEmail.find((line: {
             id: string;
             order_id: string;
             product_name: string;
@@ -236,16 +247,16 @@ if (newOrders.length > 0) {
     };
   });
 
-  const newIds = new Set(newOrders.map((o) => o.id));
-  setOrders(updatedOrders as Order[]);
-  setNewlyImportedOrderIds(newIds);
+  const newIds = new Set(newEmails.map((e) => e.id));
+  setEmails(updatedEmails as Email[]);
+  setNewlyImportedEmailIds(newIds);
   
-  // Update selectedOrder if it's one of the newly imported orders
-  if (selectedOrder && newIds.has(selectedOrder.id)) {
-    const updatedSelectedOrder = updatedOrders.find((o) => o.id === selectedOrder.id);
-    if (updatedSelectedOrder) {
-      console.log('🔄 Updating selected order with fresh data from database');
-      setSelectedOrder(updatedSelectedOrder as Order);
+  // Update selectedEmail if it's one of the newly imported emails
+  if (selectedEmail && newIds.has(selectedEmail.id)) {
+    const updatedSelectedEmail = updatedEmails.find((e) => e.id === selectedEmail.id);
+    if (updatedSelectedEmail) {
+      console.log('🔄 Updating selected email with fresh data from database');
+      setSelectedEmail(updatedSelectedEmail as Email);
     }
   }
 }
@@ -308,13 +319,13 @@ if (newOrders.length > 0) {
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOrder) return;
+    if (!selectedEmail) return;
     setSubmitting(true);
     try {
       const corrected = feedbackText ? JSON.parse(feedbackText) : null;
       await supabase.from("order_feedback").insert({
-        order_id: selectedOrder.id,
-        original_data: selectedOrder.parsed_data,
+        order_id: selectedEmail.id,
+        original_data: selectedEmail.parsed_data,
         corrected_data: corrected,
         feedback_text: feedbackText,
       });
@@ -337,10 +348,10 @@ if (newOrders.length > 0) {
     return grouped;
   };
 
-  const totalPages = Math.ceil(orders.length / ordersPerPage);
+  const totalPages = Math.ceil(emails.length / emailsPerPage);
 
-  const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const paginatedOrders = sortedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+  const sortedEmails = [...emails].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const paginatedEmails = sortedEmails.slice((currentPage - 1) * emailsPerPage, currentPage * emailsPerPage);
 
   return (
     <div className="p-4">
@@ -376,23 +387,23 @@ if (newOrders.length > 0) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
-        {paginatedOrders.map((order) => (
+        {paginatedEmails.map((email) => (
   <Card 
-    key={order.id} 
-    onClick={() => setSelectedOrder(order)} 
+    key={email.id} 
+    onClick={() => setSelectedEmail(email)} 
     className={`cursor-pointer transition-shadow duration-200 ease-in-out hover:transition-all border-2 shadow-none
                hover:shadow-lg hover:shadow-gray-300 hover:border-gray-400 hover:bg-gray-100/60
                active:scale-[0.98] active:shadow-sm active:bg-gray-100/50
-               ${selectedOrder?.id === order.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
+               ${selectedEmail?.id === email.id ? 'border-gray-800 bg-gray-50/50 shadow-md' : 'border-gray-200'}
                `}
   >
     <CardHeader>
                 <CardTitle className="text-sm">
-              {order.subject}
-              {newlyImportedOrderIds.has(order.id) && <span className="ml-2 text-blue-500 text-xs">🆕 Nieuw</span>}
+              {email.subject}
+              {newlyImportedEmailIds.has(email.id) && <span className="ml-2 text-blue-500 text-xs">🆕 Nieuw</span>}
             </CardTitle>
       <p className="text-xs text-muted-foreground">
-        {order.sender_name || order.sender_email} • {new Date(order.created_at).toLocaleString()}
+        {email.order?.customer_name || email.sender_name || email.sender_email} • {new Date(email.created_at).toLocaleString()}
       </p>
     </CardHeader>
   </Card>
@@ -409,37 +420,37 @@ if (newOrders.length > 0) {
           </div>
         </div>
 
-        {selectedOrder && (
+        {selectedEmail && (
           <div className="col-span-1">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Email Details</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  From: {selectedOrder.sender_name || selectedOrder.sender_email}
+                  From: {selectedEmail.sender_name || selectedEmail.sender_email}
                 </p>
               </CardHeader>
               <CardContent>
-                {selectedOrder.email_body_html ? (
+                {selectedEmail.email_body_html ? (
                   <div
                     className="email-preview h-[80vh] font-mono text-xs overflow-auto border rounded p-2 bg-white"
-                    dangerouslySetInnerHTML={{ __html: selectedOrder.email_body_html }}
+                    dangerouslySetInnerHTML={{ __html: selectedEmail.email_body_html }}
                   />
                 ) : (
-                  <Textarea value={selectedOrder.email_body} className="h-[80vh] font-mono text-xs" readOnly />
+                  <Textarea value={selectedEmail.email_body} className="h-[80vh] font-mono text-xs" readOnly />
                 )}
               </CardContent>
             </Card>
           </div>
         )}
 
-        {selectedOrder && (
+        {selectedEmail && (
           <div className="col-span-1">
             <Card>
             <CardHeader>
                 <CardTitle className="text-base">Resultaat email orders</CardTitle>
-                <p className="text-xs text-muted-foreground">Klant: {selectedOrder.sender_name || selectedOrder.sender_email}</p>
+                <p className="text-xs text-muted-foreground">Klant: {selectedEmail.order?.customer_name || selectedEmail.sender_name || selectedEmail.sender_email}</p>
                 <p className="text-xs text-muted-foreground">
-                Datum: {formatDate(selectedOrder.created_at)}
+                Datum: {formatDate(selectedEmail.created_at)}
                 </p>
               </CardHeader>
               <CardContent>
@@ -452,8 +463,8 @@ if (newOrders.length > 0) {
 
                   <TabsContent value="lines">
 
-                    {selectedOrder.parsed_data?.products ? (
-                      Object.entries(groupedProductsByDate(selectedOrder.parsed_data.products)).map(
+                    {selectedEmail.parsed_data?.products ? (
+                      Object.entries(groupedProductsByDate(selectedEmail.parsed_data.products)).map(
                         ([date, products]) => (
                           <div key={date} className="mb-3">
                             <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
@@ -498,15 +509,15 @@ if (newOrders.length > 0) {
                    
 
 <br></br>
-                    {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
+                    {selectedEmail.parsed_data?.products && selectedEmail.parsed_data.products.length > 0 && (
                     <div className="flex justify-end mb-2">
                           <Button
                             variant="secondary"
                             size="sm"
                             onClick={() => {
                               const text = generateClipboardText(
-                                selectedOrder.parsed_data.products!,
-                                selectedOrder.sender_name || selectedOrder.sender_email
+                                selectedEmail.parsed_data.products!,
+                                selectedEmail.order?.customer_name || selectedEmail.sender_name || selectedEmail.sender_email
                               );
                               copyToClipboard(text);
                             }}
@@ -519,7 +530,7 @@ if (newOrders.length > 0) {
 
                   <TabsContent value="parsed">
                     <Textarea
-                      value={JSON.stringify(selectedOrder.parsed_data, null, 2)}
+                      value={JSON.stringify(selectedEmail.parsed_data, null, 2)}
                       className="h-64 font-mono text-xs"
                       readOnly
                     />
