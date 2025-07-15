@@ -97,6 +97,7 @@ export default function OrdersOverview({
     });
   };
 
+
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
@@ -444,9 +445,12 @@ if (newOrders.length > 0) {
         {selectedOrder && (
           <div className="col-span-1">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Gestructureerde Order</CardTitle>
-                <p className="text-xs text-muted-foreground">{selectedOrder.sender_name || selectedOrder.sender_email}</p>
+            <CardHeader>
+                <CardTitle className="text-base">Resultaat email orders</CardTitle>
+                <p className="text-xs text-muted-foreground">Klant: {selectedOrder.sender_name || selectedOrder.sender_email}</p>
+                <p className="text-xs text-muted-foreground">
+                Datum: {formatDate(selectedOrder.created_at)}
+                </p>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="lines" className="w-full">
