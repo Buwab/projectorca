@@ -9,6 +9,8 @@ from order_pusher import create_trello_card, update_product_sent_status
 from email_parser import run as run_email_parser
 from llm_parser import run as run_llm_parser
 from import_structured_orders import run as run_import_orders
+from supabase_client import supabase
+from get_clients import get_clients
 
 # 🔧 Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -90,3 +92,7 @@ def send_to_trello(request: SendOrderRequest):
             status_code=500,
             content={"status": "error", "message": str(e)}
         )
+
+@app.get("/clients")
+def clients_endpoint():
+    return get_clients()

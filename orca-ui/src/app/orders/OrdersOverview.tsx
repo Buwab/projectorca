@@ -16,7 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
-import { Loader2 } from "lucide-react";
+// import { Loader2 } from "lucide-react"; // COMMENTED OUT - used for Trello buttons
 
 interface Product {
   name: string;
@@ -41,7 +41,22 @@ interface Order {
   };
 }
 
-export default function OrdersOverview({ orders: initialOrders }: { orders: Order[] }) {
+interface Client {
+  id: string;
+  name: string;
+}
+
+export default function OrdersOverview({ 
+  orders: initialOrders, 
+  clients, 
+  selectedClient, 
+  setSelectedClient 
+}: { 
+  orders: Order[], 
+  clients: Client[], 
+  selectedClient: Client | null, 
+  setSelectedClient: (client: Client | null) => void 
+}) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [feedbackText, setFeedbackText] = useState<string>("");
@@ -50,12 +65,17 @@ export default function OrdersOverview({ orders: initialOrders }: { orders: Orde
   const [processResult, setProcessResult] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 7;
-  const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set());
+  // const [sendingOrders, setSendingOrders] = useState<Set<string>>(new Set()); // COMMENTED OUT - used for Trello buttons
   const [newlyImportedOrderIds, setNewlyImportedOrderIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
+
+  // Clear selected order when client changes
+  useEffect(() => {
+    setSelectedOrder(null);
+  }, [selectedClient]);
 
   useEffect(() => {
     if (selectedOrder) {
@@ -205,7 +225,8 @@ if (newOrders.length > 0) {
   };
   
 
-  const handleSendOrder = async (product: Product, index: number) => {
+  // TRELLO SEND ORDER FUNCTION - TEMPORARILY COMMENTED OUT
+  /* const handleSendOrder = async (product: Product, index: number) => {
     if (!product.delivery_date || !product.order_line_id) {
       console.log('❌ Cannot send order: missing delivery_date or order_line_id', { 
         delivery_date: product.delivery_date, 
@@ -249,7 +270,7 @@ if (newOrders.length > 0) {
         return next;
       });
     }
-  };
+  }; */
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,6 +310,26 @@ if (newOrders.length > 0) {
 
   return (
     <div className="p-4">
+      {/* Full-width client selection bar at the top */}
+      <div className="bg-gray-50 p-3 rounded-lg mb-4 flex justify-end">
+        <div>
+          <label className="mr-2 text-sm font-medium">Selecteer klant:</label>
+          <select
+            value={selectedClient ? selectedClient.id : ''}
+            onChange={e => {
+              const client = clients.find(c => c.id === e.target.value) || null;
+              setSelectedClient(client);
+            }}
+            className="border rounded px-2 py-1 text-sm font-medium"
+          >
+            <option value="">Toon alles</option>
+            {clients.map(client => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-semibold">Orders</h1>
         <div className="flex flex-col items-end">
@@ -381,30 +422,31 @@ if (newOrders.length > 0) {
                             <h4 className="font-semibold text-sm mb-1">🗓 {date}</h4>
                             {products.map((p, i) => {
                               // Use order_line_id as the unique key for this specific product
-                              const productKey = p.order_line_id;
+                              // const productKey = p.order_line_id; // COMMENTED OUT - used for Trello buttons
                               
                               return (
                                 <div key={i} className="flex justify-between text-sm border-b py-1">
                                   <span>{p.name}</span>
                                   <span>
                                     {p.quantity} {p.unit}
-                                    {p.delivery_date && (
-                                      <Button 
-                                        variant={p.is_exported ? "ghost" : "outline"} 
-                                        size="icon"
-                                        className="ml-2 h-6 w-6 hover:bg-slate-100"
-                                        onClick={() => handleSendOrder(p, i)}
-                                        disabled={!!p.is_exported || (!!productKey && sendingOrders.has(productKey))}
-                                      >
-                                        {p.is_exported ? (
-                                          "✅"
-                                        ) : (productKey && sendingOrders.has(productKey)) ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          "📤"
-                                        )}
-                                      </Button>
-                                    )}
+                                                                         {/* TRELLO PUSH BUTTONS - TEMPORARILY HIDDEN */}
+                                     {/* {p.delivery_date && (
+                                        <Button 
+                                          variant={p.is_exported ? "ghost" : "outline"} 
+                                          size="icon"
+                                          className="ml-2 h-6 w-6 hover:bg-slate-100"
+                                          onClick={() => handleSendOrder(p, i)}
+                                          disabled={!!p.is_exported || (!!p.order_line_id && sendingOrders.has(p.order_line_id))}
+                                        >
+                                          {p.is_exported ? (
+                                            "✅"
+                                          ) : (p.order_line_id && sendingOrders.has(p.order_line_id)) ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            "📤"
+                                          )}
+                                        </Button>
+                                      )} */}
                                   </span>
                                 </div>
                               );
