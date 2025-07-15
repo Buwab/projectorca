@@ -130,38 +130,7 @@ export default function OrdersOverview({
     }
   }, [newlyImportedOrderIds]);
 
-// const handleSetFirstTimeRight = async (isRight: boolean) => {
-//   if (!selectedOrder) return;
-//   setSubmitting(true);
-//   try {
-//     // Update in Supabase
-//     await supabase
-//       .from("emails")
-//       .update({ first_time_right: isRight })
-//       .eq("id", selectedOrder.id);
 
-//     // ✅ Update in state
-//     setOrders((prevOrders) =>
-//       prevOrders.map((order) =>
-//         order.id === selectedOrder.id
-//           ? { ...order, first_time_right: isRight }
-//           : order
-//       )
-//     );
-
-//     // ✅ Update geselecteerde order ook los
-//     setSelectedOrder((prev) =>
-//       prev ? { ...prev, first_time_right: isRight } : null
-//     );
-
-//     alert("✔ Eerste keer goed uitgelezen status bijgewerkt");
-//   } catch (err) {
-//     console.error("❌ Fout bij bijwerken:", err);
-//     alert("❌ Fout bij bijwerken status");
-//   } finally {
-//     setSubmitting(false);
-//   }
-// };
 
   const handleProcessAll = async () => {
     setProcessing(true);
@@ -526,28 +495,7 @@ if (newOrders.length > 0) {
                     ) : (
                       <p className="text-xs italic">Geen regels gevonden.</p>
                     )}
-                    {/* <br></br>
-                  {selectedOrder.id && selectedOrder.first_time_right === null && (
-  <div className="flex items-center justify-between mt-4 p-3 border rounded-md bg-muted">
-    <span className="text-sm font-medium">📩 Was deze e-mail in één keer goed uitgelezen?</span>
-    <div className="space-x-2">
-      <Button 
-        variant="outline"
-        size="sm"
-        onClick={() => handleSetFirstTimeRight(true)}
-      >
-        ✅ Ja
-      </Button>
-      <Button 
-        variant="outline"
-        size="sm"
-        onClick={() => handleSetFirstTimeRight(false)}
-      >
-        ❌ Nee
-      </Button>
-    </div>
-  </div>
-)} */}
+                   
 
 <br></br>
                     {selectedOrder.parsed_data?.products && selectedOrder.parsed_data.products.length > 0 && (
