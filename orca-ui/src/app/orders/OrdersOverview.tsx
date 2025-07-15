@@ -382,7 +382,14 @@ if (newEmails.length > 0) {
         <h1 className="text-lg font-semibold">Orders</h1>
         <div className="flex flex-col items-end">
           <Button onClick={handleProcessAll} disabled={processing}>
-            {processing ? "Bezig..." : "Nieuwe e-mails verwerken"}
+            {processing ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Bezig...</span>
+              </div>
+            ) : (
+              "Nieuwe e-mails verwerken"
+            )}
           </Button>
           {processResult && <span className="text-xs mt-1 text-muted-foreground">{processResult}</span>}
         </div>
