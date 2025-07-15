@@ -385,7 +385,7 @@ if (newEmails.length > 0) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
         {paginatedEmails.map((email) => (
   <Card 
@@ -421,7 +421,7 @@ if (newEmails.length > 0) {
         </div>
 
         {selectedEmail && (
-          <div className="col-span-1">
+          <div className="col-span-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Email Details</CardTitle>
