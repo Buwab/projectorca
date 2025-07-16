@@ -46,6 +46,7 @@ interface Email {
   customer_name?: string; // <-- Add this line
   parsed_data: {
     products?: Product[];
+    customer_name?: string;
     [key: string]: unknown;
   };
   order?: Order;
@@ -413,7 +414,7 @@ if (newEmails.length > 0) {
               {newlyImportedEmailIds.has(email.id) && <span className="ml-2 text-blue-500 text-xs">🆕 Nieuw</span>}
             </CardTitle>
       <p className="text-xs text-muted-foreground">
-        {email.order?.customer_name || email.sender_name || email.sender_email} • {new Date(email.created_at).toLocaleString()}
+        {email.parsed_data?.customer_name || 'Geen klantnaam'} • {new Date(email.created_at).toLocaleString()}
       </p>
     </CardHeader>
   </Card>
@@ -458,7 +459,7 @@ if (newEmails.length > 0) {
             <Card>
             <CardHeader>
                 <CardTitle className="text-base">Resultaat email orders</CardTitle>
-                <p className="text-xs text-muted-foreground">Klant: {selectedEmail.order?.customer_name || selectedEmail.sender_name || selectedEmail.sender_email}</p>
+                <p className="text-xs text-muted-foreground">Klant: {selectedEmail.parsed_data?.customer_name || 'Geen klantnaam'}</p>
                 <p className="text-xs text-muted-foreground">
                 Datum: {formatDate(selectedEmail.created_at)}
                 </p>
@@ -527,7 +528,7 @@ if (newEmails.length > 0) {
                             onClick={() => {
                               const text = generateClipboardText(
                                 selectedEmail.parsed_data.products!,
-                                selectedEmail.order?.customer_name || selectedEmail.sender_name || selectedEmail.sender_email
+                                selectedEmail.parsed_data?.customer_name || 'Geen klantnaam'
                               );
                               copyToClipboard(text);
                             }}
