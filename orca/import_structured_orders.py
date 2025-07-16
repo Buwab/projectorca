@@ -16,6 +16,7 @@ def import_structured_orders():
         .select("*") \
         .eq("llm_processed", True) \
         .eq("structured_imported", False) \
+        .is_("deleted_at", None) \
         .execute()
 
     emails = response.data

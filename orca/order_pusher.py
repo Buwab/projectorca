@@ -47,7 +47,7 @@ def create_trello_card(order_id: str, product: Dict[str, Any]) -> bool:
             logger.error("Supabase client not initialized")
             return False
             
-        response = supabase.from_('emails').select('*').eq('id', order_id).execute()
+        response = supabase.from_('emails').select('*').eq('id', order_id).is_('deleted_at', None).execute()
         if not response.data:
             logger.error(f"Email {order_id} not found in database")
             return False
@@ -109,7 +109,7 @@ def update_product_sent_status(product: Dict[str, Any], sent: bool = True) -> bo
         logger.info(f"Updating export status for order_line_id {order_line_id} to {sent}")
         
         # First, verify the order line exists
-        check_response = supabase.table('order_lines').select('id, product_name, is_exported').eq('id', order_line_id).execute()
+        check_response = supabase.table('order_lines').select('id, product_name, is_exported').eq('id', order_line_id).is_('deleted_at', None).execute()
         
         if not check_response.data:
             logger.error(f"Order line with id {order_line_id} not found in database")

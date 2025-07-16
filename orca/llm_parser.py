@@ -34,6 +34,7 @@ Je bent een slimme order-assistent. Haal de volgende informatie uit de onderstaa
 
 - Geef datums altijd in formaat "YYYY-MM-DD" (ISO 8601).
 - measuring units komt eigenlijk altijd in stuks, tenzij anders vermeld, dus 10 broden is product brood en quantity 10 stuks
+- soms wordt er naast 'quanity' en 'unit' bij een productnaam ook een verpakkingsmaat of hoeveelheid vermeld (b.v.Suikersticks (500 stuks) 1 Pack). Alleen in dat geval voeg je de verpakkingsmaat of hoeveelheid toe aan de productnaam. Zorg ervoor dat de unit and qunaity niet dubbel worden vermeld (dus niet "Koffiebonen 3x" 3x)
 - Vertaal relatieve termen zoals "morgen", "dinsdag" of "volgende week" naar een echte datum, gerekend vanaf vandaag: {today}.
 - "order_date" is altijd de verzenddatum van de e-mail: {email_date}.
 - Als een datum niet genoemd wordt, gebruik null.
@@ -85,7 +86,7 @@ def clean_json_output(raw_text):
     return raw_text
 
 def process_raw_emails():
-    response = supabase.table("emails").select("*").eq("llm_processed", False).execute()
+    response = supabase.table("emails").select("*").eq("llm_processed", False).is_("deleted_at", None).execute()
     emails = response.data
 
     print(f"🔍 Gevonden ongeparste e-mails: {len(emails)}")

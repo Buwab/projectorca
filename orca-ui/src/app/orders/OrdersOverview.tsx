@@ -165,6 +165,7 @@ if (newEmails.length > 0) {
   const { data: emailsData, error: emailsError } = await supabase
     .from("emails")
     .select("*")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (emailsError) throw emailsError;
@@ -175,12 +176,14 @@ if (newEmails.length > 0) {
   // Get ALL order lines to enrich the JSON with IDs
   const { data: allOrderLines } = await supabase
     .from("order_lines")
-    .select("id, order_id, product_name, quantity, unit, is_exported");
+    .select("id, order_id, product_name, quantity, unit, is_exported")
+    .is("deleted_at", null);
 
   // Get the mapping of email_id to order_id
   const { data: structuredEmails } = await supabase
     .from("orders")
-    .select("id, email_id, customer_name");
+    .select("id, email_id, customer_name")
+    .is("deleted_at", null);
 
 
   // Create a map of all order lines for enriching JSON with IDs
@@ -379,13 +382,20 @@ if (newEmails.length > 0) {
         <h1 className="text-lg font-semibold">Orders</h1>
         <div className="flex flex-col items-end">
           <Button onClick={handleProcessAll} disabled={processing}>
-            {processing ? "Bezig..." : "Nieuwe e-mails verwerken"}
+            {processing ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Bezig...</span>
+              </div>
+            ) : (
+              "Nieuwe e-mails verwerken"
+            )}
           </Button>
           {processResult && <span className="text-xs mt-1 text-muted-foreground">{processResult}</span>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2 max-h-[80vh] overflow-auto">
         {paginatedEmails.map((email) => (
   <Card 
@@ -421,7 +431,7 @@ if (newEmails.length > 0) {
         </div>
 
         {selectedEmail && (
-          <div className="col-span-1">
+          <div className="col-span-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Email Details</CardTitle>

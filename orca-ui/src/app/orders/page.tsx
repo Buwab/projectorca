@@ -54,6 +54,7 @@ export default function Page() {
         let emailsQuery = supabase
           .from("emails")
           .select("*, email_body_html")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
         
         if (clientId) {
@@ -68,7 +69,8 @@ export default function Page() {
         // Get orders - filter by client_id if specified
         let ordersQuery = supabase
           .from("orders")
-          .select("id, email_id, customer_name"); 
+          .select("id, email_id, customer_name")
+          .is("deleted_at", null); 
         
         if (clientId) {
           ordersQuery = ordersQuery.eq("client_id", clientId);
@@ -88,11 +90,13 @@ export default function Page() {
         let exportedLinesQuery = supabase
           .from("order_lines")
           .select("id, order_id, product_name, quantity, unit, is_exported")
+          .is("deleted_at", null)
           .eq("is_exported", true);
 
         let allOrderLinesQuery = supabase
           .from("order_lines")
-          .select("id, order_id, product_name, quantity, unit, is_exported");
+          .select("id, order_id, product_name, quantity, unit, is_exported")
+          .is("deleted_at", null);
 
         // Filter order lines by order_id if we have specific orders
         if (orderIds.length > 0) {
